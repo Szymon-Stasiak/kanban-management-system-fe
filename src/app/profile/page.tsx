@@ -1,11 +1,12 @@
 'use client';
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import SharedLayout from '@/components/layouts/SharedLayout';
-import {api} from '@/lib/api';
-import {useRouter} from 'next/navigation';
-import {motion, AnimatePresence} from 'framer-motion';
+import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import Cookies from 'js-cookie';
-import {lightBlue} from "@/lib/colors";
+import { lightBlue } from '@/lib/colors';
+import { logout } from '@/lib/auth';
 
 interface User {
     email: string;
@@ -27,6 +28,9 @@ export default function ProfilePage() {
     const [isEditing, setIsEditing] = useState(false);
     const [avatarDeleted, setAvatarDeleted] = useState(false);
 
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
     useEffect(() => {
         const fetchUser = async () => {
             try {
@@ -34,7 +38,7 @@ export default function ProfilePage() {
                 if (!token) throw new Error('No token');
 
                 const res = await api.get<User>('/users/me', {
-                    headers: {Authorization: `Bearer ${token}`},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 setUser(res.data);
                 setForm(res.data);
@@ -49,7 +53,7 @@ export default function ProfilePage() {
     }, [router]);
 
     const handleChange = (field: keyof User, value: string) => {
-        setForm((prev) => ({...prev, [field]: value}));
+        setForm((prev) => ({ ...prev, [field]: value }));
     };
 
     const handleAvatarSelect = (file: File | null) => {
@@ -78,21 +82,21 @@ export default function ProfilePage() {
 
             try {
                 await api.delete('/users/avatar', {
-                    headers: {Authorization: `Bearer ${token}`},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 const res = await api.get<User>('/users/me', {
-                    headers: {Authorization: `Bearer ${token}`},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 setUser(res.data);
                 setForm(res.data);
-            } catch (deleteErr) {
+            } catch {
                 const fd = new FormData();
                 fd.append('delete_avatar', 'true');
                 await api.put<User>('/users/edit', fd, {
-                    headers: {Authorization: `Bearer ${token}`},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 const res = await api.get<User>('/users/me', {
-                    headers: {Authorization: `Bearer ${token}`},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 setUser(res.data);
                 setForm(res.data);
@@ -121,7 +125,7 @@ export default function ProfilePage() {
             }
 
             const res = await api.put<User>('/users/edit', formData, {
-                headers: {Authorization: `Bearer ${token}`},
+                headers: { Authorization: `Bearer ${token}` },
             });
 
             setUser(res.data);
@@ -136,34 +140,49 @@ export default function ProfilePage() {
         }
     };
 
+    const handleDeleteAccount = async () => {
+        setDeleting(true);
+        try {
+            const token = Cookies.get('token');
+            if (!token) throw new Error('No token');
+            await api.delete('/users/deleteme', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            await logout();
+        } catch (err) {
+            console.error('Failed to delete account:', err);
+        } finally {
+            setDeleting(false);
+            setShowDeleteModal(false);
+        }
+    };
+
     if (loading) {
         return (
             <SharedLayout>
                 <div className="flex justify-center items-center h-screen">
                     <motion.div
                         className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full"
-                        animate={{rotate: 360}}
-                        transition={{repeat: Infinity, duration: 1}}
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 1 }}
                     />
-                =
                 </div>
             </SharedLayout>
-    );
+        );
     }
-
 
     const avatarPreviewUrl = avatarFile ? URL.createObjectURL(avatarFile) : (avatarDeleted ? null : user?.avatar_url);
 
     return (
         <SharedLayout>
-            <div className="w-full h-full flex justify-center  ">
+            <div className="w-full h-full flex justify-center">
                 <div className="flex flex-col w-full max-w-6xl bg-white rounded-2xl shadow-lg p-18 gap-15">
-                    <div
-                        className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 border-b border-gray-300 pb-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 border-b border-gray-300 pb-4">
                         <div className="flex flex-col">
                             <h2 className="text-3xl font-bold">Profile</h2>
-                            <p className="text-slate-600 mt-1">This is your profile. You can view and edit your
-                                information below.</p>
+                            <p className="text-slate-600 mt-1">
+                                This is your profile. You can view and edit your information below.
+                            </p>
                         </div>
                         {!isEditing && (
                             <button
@@ -179,10 +198,10 @@ export default function ProfilePage() {
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={isEditing ? 'edit' : 'view'}
-                            initial={{opacity: 0, scaleY: 0.95}}
-                            animate={{opacity: 1, scaleY: 1}}
-                            exit={{opacity: 0, scaleY: 0.95}}
-                            transition={{duration: 0.3}}
+                            initial={{ opacity: 0, scaleY: 0.95 }}
+                            animate={{ opacity: 1, scaleY: 1 }}
+                            exit={{ opacity: 0, scaleY: 0.95 }}
+                            transition={{ duration: 0.3 }}
                             className="flex flex-col md:flex-row gap-8 w-full"
                         >
                             <div className="flex flex-col items-center gap-4 flex-shrink-0">
@@ -193,35 +212,32 @@ export default function ProfilePage() {
                                         className="w-32 h-32 rounded-full object-cover border-2 border-slate-300"
                                     />
                                 ) : (
-                                    <div className="w-32 h-32 rounded-full border-2 border-slate-300 bg-gray-100"/>
+                                    <div className="w-32 h-32 rounded-full border-2 border-slate-300 bg-gray-100" />
                                 )}
                                 {isEditing && (
                                     <div className="flex flex-col items-center gap-2">
-                                            <label
-                                                className="cursor-pointer px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition text-sm text-center w-full max-w-[150px]"
+                                        <label className="cursor-pointer px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition text-sm text-center w-full max-w-[150px]">
+                                            Upload
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    if (e.target.files && e.target.files[0]) {
+                                                        handleAvatarSelect(e.target.files[0]);
+                                                    }
+                                                }}
+                                            />
+                                        </label>
+                                        {(user?.avatar_url || avatarFile) && (
+                                            <button
+                                                onClick={handleDeleteAvatar}
+                                                className="px-5 py-2 rounded-xl font-semibold transition text-white text-center w-full max-w-[150px]"
+                                                style={{ backgroundColor: '#ff4d4f' }}
                                             >
-                                                Upload
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    className="hidden"
-                                                    onChange={(e) => {
-                                                        if (e.target.files && e.target.files[0]) {
-                                                            handleAvatarSelect(e.target.files[0]);
-                                                        }
-                                                    }}
-                                                />
-                                            </label>
-                                            {(user?.avatar_url || avatarFile) && (
-                                                <button
-                                                    onClick={handleEnterEdit}
-                                                    className="px-5 py-2 rounded-xl font-semibold transition text-white text-center w-full max-w-[150px]"
-                                                    style={{ backgroundColor: '#ff4d4f' }}
-                                                >
-                                                    Delete
-                                                </button>
-                                            )}
-
+                                                Delete
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -290,7 +306,7 @@ export default function ProfilePage() {
                                 onClick={handleSave}
                                 disabled={saving}
                                 className="px-6 py-3 rounded-xl font-semibold hover:bg-blue-600 disabled:opacity-50 transition text-lg"
-                                style={{backgroundColor: lightBlue}}
+                                style={{ backgroundColor: lightBlue }}
                             >
                                 {saving ? 'Saving...' : 'Save'}
                             </button>
@@ -298,12 +314,64 @@ export default function ProfilePage() {
                                 onClick={handleCancel}
                                 className="px-6 py-3 rounded-xl bg-slate-200 font-semibold hover:bg-slate-300 transition"
                             >
-                            Cancel
+                                Cancel
                             </button>
                         </div>
                     )}
+                    {!isEditing && (
+                     <div className="flex justify-end items-end w-full h-full">
+                          <button
+                              onClick={() => setShowDeleteModal(true)}
+                              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 transition shadow-md"
+                          >
+                              Delete Account
+                          </button>
+                      </div>
+                    )}
                 </div>
+
             </div>
+
+
+
+            <AnimatePresence>
+                {showDeleteModal && (
+                    <motion.div
+                        className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <motion.div
+                            className="bg-white rounded-2xl p-8 shadow-lg w-[90%] max-w-md text-center"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <h3 className="text-2xl font-bold mb-3">Are you sure?</h3>
+                            <p className="text-slate-600 mb-6">
+                                This action will permanently delete your account and all associated data.
+                            </p>
+                            <div className="flex justify-center gap-4">
+                                <button
+                                    onClick={() => setShowDeleteModal(false)}
+                                    className="px-6 py-3 rounded-xl bg-slate-200 font-semibold hover:bg-slate-300 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteAccount}
+                                    disabled={deleting}
+                                    className="px-6 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50 transition"
+                                >
+                                    {deleting ? 'Deleting...' : 'Confirm'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </SharedLayout>
     );
 }

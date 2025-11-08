@@ -2,7 +2,7 @@
 import React from 'react';
 import {useRouter} from 'next/navigation';
 import {logout} from '@/lib/auth';
-import SharedLayout from '@/components/SharedLayout';
+import SharedLayout from '@/components/layouts/SharedLayout';
 
 export default function TaskPage() {
     const router = useRouter();
