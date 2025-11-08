@@ -1,10 +1,10 @@
 'use client';
 import React from 'react';
-import { useRouter } from 'next/navigation';
-import { logout } from '@/lib/auth';
+import {useRouter} from 'next/navigation';
+import {logout} from '@/lib/auth';
 import SharedLayout from '@/components/SharedLayout';
 
-export default function DashboardPage() {
+export default function TaskPage() {
     const router = useRouter();
 
     const handleLogout = () => {
@@ -16,11 +16,11 @@ export default function DashboardPage() {
         <SharedLayout>
             <div className="max-w-3xl mx-auto mt-16">
                 <div className="bg-white p-8 rounded-2xl shadow-md">
-                    <h2 className="text-2xl font-semibold mb-2">Dashboard</h2>
-                    <p className="text-slate-600 mb-6">Welcome</p>
+                    <h2 className="text-2xl font-semibold mb-2">Tasks</h2>
+                    <p className="text-slate-600 mb-6">Welcome to your task page</p>
 
                     <p className="text-sm text-slate-500">
-                        This is a basic dashboard. You can add more functionality here.
+                        Here you can view and manage your tasks.
                     </p>
 
                     <div className="mt-6">
