@@ -1,4 +1,5 @@
 import {api} from "./api"
+import Cookies from 'js-cookie';
 
 export interface UserRecord {
     username: string;
@@ -82,3 +83,36 @@ export async function login(
 export function logout(): void {
     document.cookie = "token=; path=/; max-age=0; SameSite=Lax; domain=localhost";
 }
+
+type Method = 'get' | 'post' | 'put' | 'delete';
+
+interface AuthRequestOptions {
+    method: Method;
+    url: string;
+    data?: any;
+    config?: any;
+}
+
+export async function authRequest<T>({ method, url, data, config }: AuthRequestOptions): Promise<T> {
+    const token = Cookies.get('token');
+    if (!token) throw new Error('No token');
+
+    const headers = {
+        Authorization: `Bearer ${token}`,
+        ...(config?.headers || {}),
+    };
+
+    switch (method) {
+        case 'get':
+            return (await api.get<T>(url, { ...config, headers })).data;
+        case 'post':
+            return (await api.post<T>(url, data, { ...config, headers })).data;
+        case 'put':
+            return (await api.put<T>(url, data, { ...config, headers })).data;
+        case 'delete':
+            return (await api.delete<T>(url, { ...config, headers })).data;
+        default:
+            throw new Error(`Unsupported method: ${method}`);
+    }
+}
+

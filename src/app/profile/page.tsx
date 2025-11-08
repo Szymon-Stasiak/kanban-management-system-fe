@@ -1,13 +1,10 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import SharedLayout from '@/components/layouts/SharedLayout';
-import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import Cookies from 'js-cookie';
 import { lightBlue } from '@/lib/colors';
-import { logout } from '@/lib/auth';
-
+import { authRequest, logout } from '@/lib/auth';
 import DeleteAccountModal from '@/components/modals/DeleteAccountModal';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 
@@ -25,15 +22,12 @@ export default function ProfilePage() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
     const [form, setForm] = useState<Partial<User>>({});
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [avatarDeleted, setAvatarDeleted] = useState(false);
-
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
-
     const [showResetModal, setShowResetModal] = useState(false);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -43,14 +37,9 @@ export default function ProfilePage() {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const token = Cookies.get('token');
-                if (!token) throw new Error('No token');
-
-                const res = await api.get<User>('/users/me', {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                setUser(res.data);
-                setForm(res.data);
+                const data = await authRequest<User>({ method: 'get', url: '/users/me' });
+                setUser(data);
+                setForm(data);
             } catch (err) {
                 console.error(err);
                 router.push('/login');
@@ -71,7 +60,6 @@ export default function ProfilePage() {
     };
 
     const handleEnterEdit = () => setIsEditing(true);
-
     const handleCancel = () => {
         setForm(user || {});
         setAvatarFile(null);
@@ -82,28 +70,17 @@ export default function ProfilePage() {
     const handleDeleteAvatar = async () => {
         setAvatarFile(null);
         setAvatarDeleted(true);
-
         try {
-            const token = Cookies.get('token');
-            if (!token) throw new Error('No token');
-
             try {
-                await api.delete('/users/avatar', {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                await authRequest({ method: 'delete', url: '/users/avatar' });
             } catch {
                 const fd = new FormData();
                 fd.append('delete_avatar', 'true');
-                await api.put<User>('/users/edit', fd, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                await authRequest<User>({ method: 'put', url: '/users/edit', data: fd });
             }
-
-            const res = await api.get<User>('/users/me', {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            setUser(res.data);
-            setForm(res.data);
+            const data = await authRequest<User>({ method: 'get', url: '/users/me' });
+            setUser(data);
+            setForm(data);
         } catch (err) {
             console.error('Failed to delete avatar:', err);
         }
@@ -112,27 +89,16 @@ export default function ProfilePage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const token = Cookies.get('token');
-            if (!token) throw new Error('No token');
-
             const formData = new FormData();
-
             if (form.name) formData.append('name', form.name);
             if (form.surname) formData.append('surname', form.surname);
             if (form.bio) formData.append('bio', form.bio);
+            if (avatarFile) formData.append('avatar', avatarFile);
+            else if (avatarDeleted) formData.append('delete_avatar', 'true');
 
-            if (avatarFile) {
-                formData.append('avatar', avatarFile);
-            } else if (avatarDeleted) {
-                formData.append('delete_avatar', 'true');
-            }
-
-            const res = await api.put<User>('/users/edit', formData, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            setUser(res.data);
-            setForm(res.data);
+            const data = await authRequest<User>({ method: 'put', url: '/users/edit', data: formData });
+            setUser(data);
+            setForm(data);
             setAvatarFile(null);
             setAvatarDeleted(false);
             setIsEditing(false);
@@ -146,13 +112,7 @@ export default function ProfilePage() {
     const handleDeleteAccount = async () => {
         setDeleting(true);
         try {
-            const token = Cookies.get('token');
-            if (!token) throw new Error('No token');
-
-            await api.delete<User>('/users/deleteme', {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
+            await authRequest<User>({ method: 'delete', url: '/users/deleteme' });
             logout();
             router.push('/login');
         } catch (err) {
@@ -165,23 +125,13 @@ export default function ProfilePage() {
 
     const handleResetPassword = async () => {
         setResetError(null);
-
         if (password !== confirmPassword) {
             setResetError('Passwords do not match.');
             return;
         }
-
         try {
             setResetting(true);
-            const token = Cookies.get('token');
-            if (!token) throw new Error('No token');
-
-            await api.post(
-                '/users/reset-password',
-                { password },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
+            await authRequest({ method: 'post', url: '/users/reset-password', data: { password } });
             setShowResetModal(false);
             setPassword('');
             setConfirmPassword('');
@@ -241,7 +191,6 @@ export default function ProfilePage() {
                             transition={{ duration: 0.3 }}
                             className="flex flex-col md:flex-row gap-8 w-full"
                         >
-                            {/* Avatar & form */}
                             <div className="flex flex-col items-center gap-4 flex-shrink-0">
                                 {avatarPreviewUrl ? (
                                     <img
@@ -254,18 +203,14 @@ export default function ProfilePage() {
                                 )}
                                 {isEditing && (
                                     <div className="flex flex-col items-center gap-2">
-                                        <label
-                                            className="cursor-pointer px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition text-sm text-center w-full max-w-[150px]"
-                                        >
+                                        <label className="cursor-pointer px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition text-sm text-center w-full max-w-[150px]">
                                             Upload
                                             <input
                                                 type="file"
                                                 accept="image/*"
                                                 className="hidden"
                                                 onChange={(e) => {
-                                                    if (e.target.files && e.target.files[0]) {
-                                                        handleAvatarSelect(e.target.files[0]);
-                                                    }
+                                                    if (e.target.files && e.target.files[0]) handleAvatarSelect(e.target.files[0]);
                                                 }}
                                             />
                                         </label>
@@ -388,7 +333,6 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* Modale */}
             <DeleteAccountModal
                 show={showDeleteModal}
                 onClose={() => setShowDeleteModal(false)}
