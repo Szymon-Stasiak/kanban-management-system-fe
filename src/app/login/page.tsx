@@ -2,7 +2,6 @@
 import React from 'react';
 import Logo from '@/components/Logo';
 import AuthForm from '@/components/AuthForm';
-import BackgroundGradient from "@/components/BackgroundGradient";
 
 
 export default function Page() {

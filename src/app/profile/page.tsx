@@ -1,12 +1,12 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import SharedLayout from '@/components/layouts/SharedLayout';
-import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import {api} from '@/lib/api';
+import {useRouter} from 'next/navigation';
+import {motion, AnimatePresence} from 'framer-motion';
 import Cookies from 'js-cookie';
-import { lightBlue } from '@/lib/colors';
-import { logout } from '@/lib/auth';
+import {lightBlue} from '@/lib/colors';
+import {logout} from '@/lib/auth';
 
 interface User {
     email: string;
@@ -38,7 +38,7 @@ export default function ProfilePage() {
                 if (!token) throw new Error('No token');
 
                 const res = await api.get<User>('/users/me', {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {Authorization: `Bearer ${token}`},
                 });
                 setUser(res.data);
                 setForm(res.data);
@@ -53,7 +53,7 @@ export default function ProfilePage() {
     }, [router]);
 
     const handleChange = (field: keyof User, value: string) => {
-        setForm((prev) => ({ ...prev, [field]: value }));
+        setForm((prev) => ({...prev, [field]: value}));
     };
 
     const handleAvatarSelect = (file: File | null) => {
@@ -82,10 +82,10 @@ export default function ProfilePage() {
 
             try {
                 await api.delete('/users/avatar', {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {Authorization: `Bearer ${token}`},
                 });
                 const res = await api.get<User>('/users/me', {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {Authorization: `Bearer ${token}`},
                 });
                 setUser(res.data);
                 setForm(res.data);
@@ -93,10 +93,10 @@ export default function ProfilePage() {
                 const fd = new FormData();
                 fd.append('delete_avatar', 'true');
                 await api.put<User>('/users/edit', fd, {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {Authorization: `Bearer ${token}`},
                 });
                 const res = await api.get<User>('/users/me', {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {Authorization: `Bearer ${token}`},
                 });
                 setUser(res.data);
                 setForm(res.data);
@@ -125,7 +125,7 @@ export default function ProfilePage() {
             }
 
             const res = await api.put<User>('/users/edit', formData, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {Authorization: `Bearer ${token}`},
             });
 
             setUser(res.data);
@@ -145,10 +145,14 @@ export default function ProfilePage() {
         try {
             const token = Cookies.get('token');
             if (!token) throw new Error('No token');
-            await api.delete('/users/deleteme', {
-                headers: { Authorization: `Bearer ${token}` },
+
+            await api.delete<User>('/users/deleteme', {
+                headers: {Authorization: `Bearer ${token}`},
             });
-            await logout();
+
+            logout();
+
+            await router.push('/login');
         } catch (err) {
             console.error('Failed to delete account:', err);
         } finally {
@@ -163,8 +167,8 @@ export default function ProfilePage() {
                 <div className="flex justify-center items-center h-screen">
                     <motion.div
                         className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full"
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 1 }}
+                        animate={{rotate: 360}}
+                        transition={{repeat: Infinity, duration: 1}}
                     />
                 </div>
             </SharedLayout>
@@ -177,7 +181,8 @@ export default function ProfilePage() {
         <SharedLayout>
             <div className="w-full h-full flex justify-center">
                 <div className="flex flex-col w-full max-w-6xl bg-white rounded-2xl shadow-lg p-18 gap-15">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 border-b border-gray-300 pb-4">
+                    <div
+                        className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 border-b border-gray-300 pb-4">
                         <div className="flex flex-col">
                             <h2 className="text-3xl font-bold">Profile</h2>
                             <p className="text-slate-600 mt-1">
@@ -188,7 +193,7 @@ export default function ProfilePage() {
                             <button
                                 onClick={handleEnterEdit}
                                 className="px-6 py-3 rounded-xl font-semibold hover:bg-blue-600 disabled:opacity-50 transition text-lg"
-                                style={{ backgroundColor: lightBlue }}
+                                style={{backgroundColor: lightBlue}}
                             >
                                 Edit Profile
                             </button>
@@ -198,10 +203,10 @@ export default function ProfilePage() {
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={isEditing ? 'edit' : 'view'}
-                            initial={{ opacity: 0, scaleY: 0.95 }}
-                            animate={{ opacity: 1, scaleY: 1 }}
-                            exit={{ opacity: 0, scaleY: 0.95 }}
-                            transition={{ duration: 0.3 }}
+                            initial={{opacity: 0, scaleY: 0.95}}
+                            animate={{opacity: 1, scaleY: 1}}
+                            exit={{opacity: 0, scaleY: 0.95}}
+                            transition={{duration: 0.3}}
                             className="flex flex-col md:flex-row gap-8 w-full"
                         >
                             <div className="flex flex-col items-center gap-4 flex-shrink-0">
@@ -212,11 +217,12 @@ export default function ProfilePage() {
                                         className="w-32 h-32 rounded-full object-cover border-2 border-slate-300"
                                     />
                                 ) : (
-                                    <div className="w-32 h-32 rounded-full border-2 border-slate-300 bg-gray-100" />
+                                    <div className="w-32 h-32 rounded-full border-2 border-slate-300 bg-gray-100"/>
                                 )}
                                 {isEditing && (
                                     <div className="flex flex-col items-center gap-2">
-                                        <label className="cursor-pointer px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition text-sm text-center w-full max-w-[150px]">
+                                        <label
+                                            className="cursor-pointer px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition text-sm text-center w-full max-w-[150px]">
                                             Upload
                                             <input
                                                 type="file"
@@ -233,7 +239,7 @@ export default function ProfilePage() {
                                             <button
                                                 onClick={handleDeleteAvatar}
                                                 className="px-5 py-2 rounded-xl font-semibold transition text-white text-center w-full max-w-[150px]"
-                                                style={{ backgroundColor: '#ff4d4f' }}
+                                                style={{backgroundColor: '#ff4d4f'}}
                                             >
                                                 Delete
                                             </button>
@@ -273,16 +279,23 @@ export default function ProfilePage() {
                                             type="text"
                                             value={form.name || ''}
                                             onChange={(e) => handleChange('name', e.target.value)}
-                                            className="px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 h-[3.5rem] w-full min-w-0"
+                                            readOnly={!isEditing}
+                                            className={`px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 h-[3.5rem] w-full min-w-0 ${
+                                                !isEditing ? 'cursor-default select-none' : ''
+                                            }`}
                                         />
                                     </div>
+
                                     <div className="flex-1 flex flex-col min-w-0">
                                         <label className="text-sm text-slate-500 mb-1">Surname</label>
                                         <input
                                             type="text"
                                             value={form.surname || ''}
                                             onChange={(e) => handleChange('surname', e.target.value)}
-                                            className="px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 h-[3.5rem] w-full min-w-0"
+                                            readOnly={!isEditing}
+                                            className={`px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 h-[3.5rem] w-full min-w-0 ${
+                                                !isEditing ? 'cursor-default select-none' : ''
+                                            }`}
                                         />
                                     </div>
                                 </div>
@@ -292,10 +305,14 @@ export default function ProfilePage() {
                                     <textarea
                                         value={form.bio || ''}
                                         onChange={(e) => handleChange('bio', e.target.value)}
-                                        className="px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none w-full min-w-0 overflow-y-auto break-words whitespace-pre-wrap"
+                                        readOnly={!isEditing}
+                                        className={`px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none w-full min-w-0 overflow-y-auto break-words whitespace-pre-wrap ${
+                                            !isEditing ? 'cursor-default select-none' : ''
+                                        }`}
                                         rows={4}
                                     />
                                 </div>
+
                             </div>
                         </motion.div>
                     </AnimatePresence>
@@ -306,7 +323,7 @@ export default function ProfilePage() {
                                 onClick={handleSave}
                                 disabled={saving}
                                 className="px-6 py-3 rounded-xl font-semibold hover:bg-blue-600 disabled:opacity-50 transition text-lg"
-                                style={{ backgroundColor: lightBlue }}
+                                style={{backgroundColor: lightBlue}}
                             >
                                 {saving ? 'Saving...' : 'Save'}
                             </button>
@@ -319,35 +336,34 @@ export default function ProfilePage() {
                         </div>
                     )}
                     {!isEditing && (
-                     <div className="flex justify-end items-end w-full h-full">
-                          <button
-                              onClick={() => setShowDeleteModal(true)}
-                              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 transition shadow-md"
-                          >
-                              Delete Account
-                          </button>
-                      </div>
+                        <div className="flex justify-end items-end w-full h-full">
+                            <button
+                                onClick={() => setShowDeleteModal(true)}
+                                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 text-sm font-semibold hover:bg-gray-300 transition shadow-md"
+                            >
+                                Delete Account
+                            </button>
+                        </div>
                     )}
                 </div>
 
             </div>
 
 
-
             <AnimatePresence>
                 {showDeleteModal && (
                     <motion.div
                         className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        initial={{opacity: 0}}
+                        animate={{opacity: 1}}
+                        exit={{opacity: 0}}
                     >
                         <motion.div
                             className="bg-white rounded-2xl p-8 shadow-lg w-[90%] max-w-md text-center"
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
+                            initial={{scale: 0.9, opacity: 0}}
+                            animate={{scale: 1, opacity: 1}}
+                            exit={{scale: 0.9, opacity: 0}}
+                            transition={{duration: 0.2}}
                         >
                             <h3 className="text-2xl font-bold mb-3">Are you sure?</h3>
                             <p className="text-slate-600 mb-6">

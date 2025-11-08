@@ -60,7 +60,6 @@ export async function login(
             headers: {"Content-Type": "application/x-www-form-urlencoded"},
         });
 
-        console.log("Login response:", res.data.token);
         if (res.data?.token) {
             const maxAge = 60 * 60 * 24;
             document.cookie = `token=${res.data.token}; path=/; max-age=${maxAge}; SameSite=Lax; domain=localhost`;

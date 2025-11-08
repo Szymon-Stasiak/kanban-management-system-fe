@@ -138,11 +138,12 @@ export default function AuthForm() {
                     disabled={!isFormValid() || loading}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`w-full rounded-2xl border px-8 py-4 font-semibold text-lg transition-colors ${
-                       isFormValid()
-                            ? `bg-[${lightBlue}] border-[${lightBlue}] text-black cursor-pointer`
-                            : 'bg-white border-gray-300 text-gray-500 cursor-not-allowed'
+                    className={`w-full rounded-2xl px-8 py-4 font-semibold text-lg transition-colors ${
+                        isFormValid()
+                            ? 'bg-lightBlue text-lg cursor-pointer'
+                            : 'bg-gray-300 cursor-not-allowed'
                     }`}
+                    style={isFormValid() ? { backgroundColor: lightBlue } : {}}
                 >
                     {mode === 'signup' ? (loading ? 'Creating...' : 'Create Account') : loading ? 'Logging in...' : 'Log In'}
                 </motion.button>
