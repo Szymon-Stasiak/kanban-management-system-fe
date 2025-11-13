@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { lightBlue } from '@/lib/colors';
 import { authRequest, logout } from '@/lib/auth';
-import DeleteAccountModal from '@/components/modals/DeleteAccountModal';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 
 interface User {
@@ -333,12 +333,17 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            <DeleteAccountModal
+            <ConfirmModal
                 show={showDeleteModal}
                 onClose={() => setShowDeleteModal(false)}
                 onConfirm={handleDeleteAccount}
-                deleting={deleting}
+                confirming={deleting}
+                title="Are you sure?"
+                description="This action will permanently delete your account and all associated data."
+                confirmText="Delete"
+                cancelText="Cancel"
             />
+
 
             <ResetPasswordModal
                 show={showResetModal}
