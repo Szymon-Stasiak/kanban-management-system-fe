@@ -1,14 +1,27 @@
 'use client';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface DeleteAccountModalProps {
+interface ModalProps {
     show: boolean;
     onClose: () => void;
     onConfirm: () => void;
-    deleting: boolean;
+    confirming?: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    cancelText?: string;
 }
 
-export default function DeleteAccountModal({ show, onClose, onConfirm, deleting }: DeleteAccountModalProps) {
+export default function Modal({
+                                  show,
+                                  onClose,
+                                  onConfirm,
+                                  confirming = false,
+                                  title,
+                                  description,
+                                  confirmText = 'Confirm',
+                                  cancelText = 'Cancel',
+                              }: ModalProps) {
     if (!show) return null;
 
     return (
@@ -26,23 +39,21 @@ export default function DeleteAccountModal({ show, onClose, onConfirm, deleting 
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                 >
-                    <h3 className="text-2xl font-bold mb-3">Are you sure?</h3>
-                    <p className="text-slate-600 mb-6">
-                        This action will permanently delete your account and all associated data.
-                    </p>
+                    <h3 className="text-2xl font-bold mb-3">{title}</h3>
+                    <p className="text-slate-600 mb-6">{description}</p>
                     <div className="flex justify-center gap-4">
                         <button
                             onClick={onClose}
                             className="px-6 py-3 rounded-xl bg-slate-200 font-semibold hover:bg-slate-300 transition"
                         >
-                            Cancel
+                            {cancelText}
                         </button>
                         <button
                             onClick={onConfirm}
-                            disabled={deleting}
+                            disabled={confirming}
                             className="px-6 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50 transition"
                         >
-                            {deleting ? 'Deleting...' : 'Confirm'}
+                            {confirming ? `${confirmText}...` : confirmText}
                         </button>
                     </div>
                 </motion.div>
