@@ -106,7 +106,6 @@ export default function ProjectPage() {
                 <div
                     className="w-full max-w-4xl rounded-2xl shadow-lg overflow-hidden bg-white hover:shadow-2xl transition-shadow"
                 >
-                    {/* Header z nazwą i kolorem */}
                     <div
                         className="px-8 py-6"
                         style={{
@@ -141,7 +140,6 @@ export default function ProjectPage() {
                             )}
                         </div>
 
-                        {/* Status i kolor */}
                         <div className="flex flex-col justify-start items-start md:items-start space-y-6">
                             <div className="w-full">
                                 <label className="font-semibold text-gray-800 mb-2 block text-lg">Status:</label>
@@ -166,7 +164,6 @@ export default function ProjectPage() {
                             </div>
                         </div>
 
-                        {/* Description */}
                         <div className="col-span-2 mt-4">
                             <label className="font-semibold text-gray-800 mb-2 block text-lg">Description:</label>
                             <textarea
@@ -177,7 +174,6 @@ export default function ProjectPage() {
                             />
                         </div>
 
-                        {/* Action buttons */}
                         <div className="col-span-2 flex justify-end items-end w-full h-full gap-3">
                             <button
                                 onClick={() => setShowDeleteModal(true)}

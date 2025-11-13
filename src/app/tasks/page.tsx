@@ -1,16 +1,9 @@
 'use client';
 import React from 'react';
-import { useRouter } from 'next/navigation';
-import { logout } from '@/lib/auth';
 import SharedLayout from '@/components/layouts/SharedLayout';
 
 export default function DashboardPage() {
-    const router = useRouter();
 
-    const handleLogout = () => {
-        logout();
-        router.push('/login');
-    };
 
     return (
         <SharedLayout>
@@ -23,14 +16,6 @@ export default function DashboardPage() {
                         This is a placeholder for the Tasks page. More features coming soon!
                     </p>
 
-                    <div className="mt-6">
-                        <button
-                            onClick={handleLogout}
-                            className="px-4 py-2 rounded bg-slate-100"
-                        >
-                            Log Out
-                        </button>
-                    </div>
                 </div>
             </div>
         </SharedLayout>

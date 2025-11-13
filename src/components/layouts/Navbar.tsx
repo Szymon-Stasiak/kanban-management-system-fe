@@ -1,13 +1,17 @@
 'use client';
 
 import React, {useState} from 'react';
-import {FaTachometerAlt, FaTasks, FaUser, FaArrowRight} from 'react-icons/fa';
+import {FaTachometerAlt, FaTasks, FaUser, FaArrowRight, FaSignOutAlt} from 'react-icons/fa';
 import Logo from "@/components/Logo";
 import {motion, AnimatePresence} from 'framer-motion';
 import {useRouter} from "next/navigation";
+import ConfirmModal from "@/components/modals/ConfirmModal";
+import {authRequest, logout} from "@/lib/auth";
 
 export default function Navbar() {
     const router = useRouter();
+    const [showLogOutModal, setShowLogOutModal] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
 
     const getInitialExpanded = () => {
         if (typeof window !== 'undefined') {
@@ -18,6 +22,12 @@ export default function Navbar() {
     };
 
     const [isExpanded, setIsExpanded] = useState(getInitialExpanded);
+
+    const handleLogOut= async () => {
+        setLoggingOut(true);
+            logout();
+            router.push('/login');
+    };
 
     const toggleExpand = () => {
         setIsExpanded(prev => {
@@ -101,6 +111,45 @@ export default function Navbar() {
                 ))}
             </div>
 
+            <div className="flex flex-col px-1">
+
+                <motion.div
+                    onClick={() => setShowLogOutModal(true)}
+                    initial={false}
+                    animate={isExpanded ? "expanded" : "collapsed"}
+                    variants={{
+                        expanded: {width: "100%"},
+                        collapsed: {width: "auto"},
+                    }}
+                    className="relative flex items-center gap-4 px-4 py-3 w-full rounded-full hover:bg-red-100 hover:text-red-500 transition-colors cursor-pointer mb-4"
+                >
+                    <div className="flex-shrink-0 w-10 flex justify-center">
+                        <motion.div
+                            className={`text-3xl ${!isExpanded ? 'hover:scale-125 transition-transform duration-200' : ''}`}
+                            layout
+                        >
+                            <FaSignOutAlt/>
+                        </motion.div>
+                    </div>
+
+                    <AnimatePresence>
+                        {isExpanded && (
+                            <motion.span
+                                key="logout"
+                                initial={{opacity: 0, x: -10}}
+                                animate={{opacity: 1, x: 0}}
+                                exit={{opacity: 0, x: -10}}
+                                transition={{duration: 0.3}}
+                                className="text-sm font-medium"
+                            >
+                                Logout
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </motion.div>
+            </div>
+
+
             <div className="flex flex-col px-6">
                 <motion.div
                     animate={{width: isExpanded ? 160 : 48}}
@@ -117,6 +166,16 @@ export default function Navbar() {
                     <FaArrowRight className="text-xl"/>
                 </motion.button>
             </div>
+            <ConfirmModal
+                show={showLogOutModal}
+                onClose={() => setShowLogOutModal(false)}
+                onConfirm={handleLogOut}
+                confirming={loggingOut}
+                title="Are you sure you want to log out?"
+                description=""
+                confirmText="Log Out"
+                cancelText="Cancel"
+            />
         </motion.div>
     );
 }
