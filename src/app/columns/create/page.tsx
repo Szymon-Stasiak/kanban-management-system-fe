@@ -9,6 +9,7 @@ function CreateColumnForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const boardId = searchParams.get("boardId");
+  const projectId = searchParams.get("projectId");
 
   const [name, setName] = useState("");
   const [position, setPosition] = useState(1);
@@ -18,10 +19,11 @@ function CreateColumnForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!boardId) {
-      setError("Board ID is missing");
-      return;
-    }
+    
+  if (!boardId || !projectId) {
+    setError("Missing boardId or projectId");
+    return;
+  }
 
     setLoading(true);
     setError(null);
@@ -36,7 +38,7 @@ function CreateColumnForm() {
           board_id: parseInt(boardId),
         },
       });
-      router.push("/boards");
+      router.push(`/boards/project/${projectId}`);
     } catch (err: any) {
       console.error(err);
       setError(err?.response?.data?.detail || "Failed to create column");

@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth"; 
 import SharedLayout from "@/components/layouts/SharedLayout";
+import { UUID } from "crypto";
 
 type Column = {
   id: number;
@@ -14,20 +15,29 @@ type Column = {
 type Board = {
   id: number;
   name: string;
+  projectId: UUID;
   description?: string | null;
   columns?: Column[];
 };
 
-export default function BoardsPage() {
+export default function ProjectBoardsPage() {
   const router = useRouter();
+  const params = useParams();
+  const projectId = params.projectId;
+
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+     if (!projectId) return;
+
     const fetchBoards = async () => {
       try {
-        const data = await authRequest<Board[]>({ method: "get", url: "/boards/" });
+        const data = await authRequest<Board[]>({
+          method: "get",
+          url: `/boards/project/${projectId}`,
+        });
 
         const boardsWithColumns = await Promise.all(
           data.map(async (board) => {
@@ -53,10 +63,10 @@ export default function BoardsPage() {
     };
 
     fetchBoards();
-  }, []);
+  }, [projectId]);
 
-  const handleAddColumn = (boardId: number) => {
-    router.push(`/columns/create?boardId=${boardId}`);
+  const handleAddColumn = (boardId: number, projectId: UUID) => {
+    router.push(`/columns/create?boardId=${boardId}&projectId=${projectId}`);
   };
 
   const handleRenameColumn = async (boardId: number, columnId: number, currentName: string, currentPosition: number) => {
@@ -118,7 +128,7 @@ export default function BoardsPage() {
     if (!confirm("Are you sure you want to delete this board?")) return;
 
     try {
-      await authRequest({ method: "delete", url: `/boards/${boardId}` });
+      await authRequest({ method: "delete", url: `/boards/${boardId}/project/${projectId}` });
 
       setBoards((prev) => prev.filter((board) => board.id !== boardId));
     } catch (err) {
@@ -133,7 +143,7 @@ export default function BoardsPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">All Boards</h1>
           <button
-            onClick={() => router.push("/boards/create")}
+            onClick={() => router.push(`/boards/create/project/${projectId}`)}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             + Create Board
@@ -227,7 +237,7 @@ export default function BoardsPage() {
                   </div>
 
                   <button
-                    onClick={() => handleAddColumn(board.id)}
+                    onClick={() => handleAddColumn(board.id, board.projectId)}
                     className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
                   >
                     + Add Column

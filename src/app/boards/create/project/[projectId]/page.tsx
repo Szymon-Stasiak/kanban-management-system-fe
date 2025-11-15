@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
 
 export default function CreateBoardPage() {
   const router = useRouter();
+  const params = useParams();
+  const projectId = params.projectId;
+  
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,10 +23,10 @@ export default function CreateBoardPage() {
     try {
       await authRequest({
         method: "post",
-        url: "/boards/create",
+        url: `/boards/create/project/${projectId}`,
         data: { name, description },
       });
-      router.push("/boards"); // go back to boards list
+      router.push(`/boards/project/${projectId}`); // go back to boards list
     } catch (err) {
       console.error(err);
       setError("Failed to create board");
