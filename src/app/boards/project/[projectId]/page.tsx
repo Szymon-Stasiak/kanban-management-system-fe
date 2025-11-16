@@ -15,6 +15,7 @@ type Column = {
 type Board = {
   id: number;
   name: string;
+  color?: string;
   description?: string | null;
   columns?: Column[];
 };
@@ -157,9 +158,12 @@ export default function ProjectBoardsPage() {
             {boards.length > 0 ? (
               boards.map((board) => (
                 <div
-                  key={board.id}
-                  className="bg-white p-6 rounded-2xl shadow hover:shadow-lg transition"
-                >
+                    key={board.id}
+                    className="p-6 rounded-2xl shadow hover:shadow-lg transition"
+                    style={{
+                      background: `linear-gradient(to right, #ffffff, ${board.color ?? "#f3f4f6"})`
+                    }}
+                  >
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h2 className="text-xl font-semibold">{board.name}</h2>

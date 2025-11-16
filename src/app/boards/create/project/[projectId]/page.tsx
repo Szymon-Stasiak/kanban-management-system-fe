@@ -14,6 +14,7 @@ export default function CreateBoardPage() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [color, setColor] = useState("#ffffff");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +25,7 @@ export default function CreateBoardPage() {
       await authRequest({
         method: "post",
         url: `/boards/create/project/${projectId}`,
-        data: { name, description },
+        data: { name, description, color },
       });
       router.push(`/boards/project/${projectId}`); // go back to boards list
     } catch (err) {
@@ -58,6 +59,16 @@ export default function CreateBoardPage() {
               className="w-full p-2 border rounded"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Color</label>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="w-full h-12 p-1 border rounded cursor-pointer"
+            />
+        </div>
+
           {error && <p className="text-red-500">{error}</p>}
           <button
             type="submit"
