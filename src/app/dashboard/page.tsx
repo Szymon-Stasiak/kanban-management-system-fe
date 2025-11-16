@@ -1,6 +1,6 @@
 'use client';
-import React, {useEffect, useState} from 'react';
-import {useRouter} from 'next/navigation';
+import React, {useEffect, useState, useMemo} from 'react';
+import {useRouter, useSearchParams, usePathname} from 'next/navigation';
 import {logout, authRequest} from '@/lib/auth';
 import SharedLayout from '@/components/layouts/SharedLayout';
 import {CustomTable} from '@/components/CustomTable';
@@ -8,6 +8,7 @@ import {Button} from "@/components/ui/button";
 import {Plus} from 'lucide-react';
 import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label"
+import {Checkbox} from "@/components/ui/checkbox"
 import {
     Dialog,
     DialogContent,
@@ -17,15 +18,30 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+
 
 interface Project {
     id: string;
     name: string;
     description: string;
     color: string;
+    archived: boolean;
 }
 
 export default function TaskPage() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const showArchived = searchParams.get('archived') === 'true';
+    
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -39,6 +55,14 @@ export default function TaskPage() {
 
 
     useEffect(() => {
+        if (!searchParams.has('archived')) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set('archived', 'false');
+            router.replace(`${pathname}?${params.toString()}`);
+        }
+    }, [searchParams, pathname, router]);
+
+    useEffect(() => {
         const fetchProjects = async () => {
             try {
                 const data = await authRequest<Project[]>({method: 'get', url: '/projects/getall'});
@@ -47,6 +71,7 @@ export default function TaskPage() {
                     name: p.name,
                     description: p.description,
                     color: p.color || p.hex || '#000000',
+                    archived: !!p.archived_at,
                 })) : [];
                 setProjects(items);
                 setLoading(false);
@@ -81,6 +106,7 @@ export default function TaskPage() {
                 name: response.name,
                 description: response.description,
                 color: response.color || response.hex || '#000000',
+                archived: false
             };
 
             setProjects(prev => [...prev, newProject]);
@@ -107,12 +133,41 @@ export default function TaskPage() {
         }));
     };
 
+    const filteredProjects = useMemo(() => {
+        console.log('Filtering projects. showArchived:', showArchived, 'Total:', projects.length);
+        return showArchived ? projects : projects.filter(p => !p.archived);
+    }, [projects, showArchived, searchParams]);
+
     return (
         <SharedLayout>
             <div className="max-w-3xl mx-auto mt-16">
                 <div className="bg-white p-8 rounded-2xl shadow-md">
                     <div className="flex justify-between items-center mb-2">
                         <h2 className="text-2xl font-semibold">Projects Dashboard</h2>
+                        <Select>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Order by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                            <SelectItem value="date">Creation date</SelectItem>
+                            <SelectItem value="name">Name</SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-3">
+                            <Checkbox 
+                                id="terms" 
+                                checked={showArchived}
+                                onCheckedChange={(checked) => {
+                                    const params = new URLSearchParams(searchParams.toString());
+                                    params.set('archived', checked ? 'true' : 'false');
+                                    router.push(`${pathname}?${params.toString()}`);
+                                }}
+                            />
+                            <Label htmlFor="terms" className="cursor-pointer">Show archived projects</Label>
+                        </div>
+
                         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="flex items-center gap-2 bg-[#9333ea] text-white">
@@ -177,9 +232,12 @@ export default function TaskPage() {
                         <p className="text-red-500">{error}</p>
                     ) : projects.length === 0 ? (
                         <p className="text-slate-600 text-center py-8">You currently do not have any projects</p>
-                    ) : (<div className="max-h-[60vh] overflow-y-auto">
+                    ) : filteredProjects.length === 0 ? (
+                        <p className="text-slate-600 text-center py-8">No projects to display</p>
+                    ) : (
+                        <div className="max-h-[60vh] overflow-y-auto">
                             <CustomTable
-                                data={projects}
+                                data={filteredProjects}
                                 columnHeaders={["Id", 'Name', 'Description', 'Color']}
                                 path="/project"
                             />
