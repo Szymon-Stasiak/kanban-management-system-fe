@@ -15,7 +15,6 @@ type Column = {
 type Board = {
   id: number;
   name: string;
-  projectId: UUID;
   description?: string | null;
   columns?: Column[];
 };
@@ -65,7 +64,7 @@ export default function ProjectBoardsPage() {
     fetchBoards();
   }, [projectId]);
 
-  const handleAddColumn = (boardId: number, projectId: UUID) => {
+  const handleAddColumn = (boardId: number) => {
     router.push(`/columns/create?boardId=${boardId}&projectId=${projectId}`);
   };
 
@@ -237,7 +236,7 @@ export default function ProjectBoardsPage() {
                   </div>
 
                   <button
-                    onClick={() => handleAddColumn(board.id, board.projectId)}
+                    onClick={() => handleAddColumn(board.id)}
                     className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
                   >
                     + Add Column
