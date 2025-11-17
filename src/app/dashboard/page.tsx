@@ -9,6 +9,7 @@ import {Plus} from 'lucide-react';
 import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label"
 import {Checkbox} from "@/components/ui/checkbox"
+import SearchBar from '@/components/layouts/SearchBar'
 import {
     Dialog,
     DialogContent,
@@ -34,6 +35,7 @@ interface Project {
     description: string;
     color: string;
     archived: boolean;
+    createdAt?: string;
 }
 
 export default function TaskPage() {
@@ -41,6 +43,7 @@ export default function TaskPage() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const showArchived = searchParams.get('archived') === 'true';
+    const query = (searchParams.get('q') ?? '').trim();
     
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
@@ -55,12 +58,23 @@ export default function TaskPage() {
 
 
     useEffect(() => {
-        if (!searchParams.has('archived')) {
+        // Ensure we set default params in a single update to avoid race conditions
+        const needsArchived = !searchParams.has('archived');
+        const needsSort = !searchParams.has('sort');
+
+        if (needsArchived || needsSort) {
             const params = new URLSearchParams(searchParams.toString());
-            params.set('archived', 'false');
+            if (!params.has('archived')) params.set('archived', 'false');
+            if (!params.has('sort')) params.set('sort', 'date');
+            // Use replace so the history isn't polluted when setting defaults
             router.replace(`${pathname}?${params.toString()}`);
         }
+
     }, [searchParams, pathname, router]);
+
+    useEffect(() => {
+        console.log('URL params:', searchParams.toString());
+    }, [searchParams]);
 
     useEffect(() => {
         const fetchProjects = async () => {
@@ -72,6 +86,7 @@ export default function TaskPage() {
                     description: p.description,
                     color: p.color || p.hex || '#000000',
                     archived: !!p.archived_at,
+                    createdAt: p.created_at ?? p.createdAt ?? p.created,
                 })) : [];
                 setProjects(items);
                 setLoading(false);
@@ -133,41 +148,66 @@ export default function TaskPage() {
         }));
     };
 
+    const sort = searchParams.get('sort') ?? 'date';
+
     const filteredProjects = useMemo(() => {
-        console.log('Filtering projects. showArchived:', showArchived, 'Total:', projects.length);
-        return showArchived ? projects : projects.filter(p => !p.archived);
-    }, [projects, showArchived, searchParams]);
+        console.log('Filtering projects. showArchived:', showArchived, 'Total:', projects.length, 'Sort:', sort, 'searchParams:', searchParams.toString(), 'Query:', query);
+        let base = showArchived ? projects : projects.filter(p => !p.archived);
+
+        // text search filter
+        if (query) {
+            const lower = query.toLowerCase();
+            base = base.filter(p =>
+                p.name.toLowerCase().includes(lower) ||
+                (p.description || '').toLowerCase().includes(lower)
+            );
+        }
+
+        // sort by selected criterion
+        const sorted = [...base];
+        if (query && (sort === 'search' || !sort || sort === 'date')) {
+            // When searching, prioritize: 1) starts with query, 2) name contains query, 3) description contains query
+            const lower = query.toLowerCase();
+            sorted.sort((a, b) => {
+                const aNameLower = a.name.toLowerCase();
+                const bNameLower = b.name.toLowerCase();
+                
+                const aStartsWith = aNameLower.startsWith(lower);
+                const bStartsWith = bNameLower.startsWith(lower);
+                const aNameMatch = aNameLower.includes(lower);
+                const bNameMatch = bNameLower.includes(lower);
+                
+                // 1. Projects starting with query come first
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+                
+                // 2. Name matches come before description matches
+                if (aNameMatch && !bNameMatch) return -1;
+                if (!aNameMatch && bNameMatch) return 1;
+                
+                // 3. If same priority, sort alphabetically by name
+                return a.name.localeCompare(b.name);
+            });
+        } else if (sort === 'name') {
+            sorted.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sort === 'date') {
+            // newest first
+            sorted.sort((a, b) => {
+                const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return db - da;
+            });
+        }
+
+        return sorted;
+    }, [projects, showArchived, searchParams, sort, query]);
 
     return (
         <SharedLayout>
             <div className="max-w-3xl mx-auto mt-16">
                 <div className="bg-white p-8 rounded-2xl shadow-md">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-semibold">Projects Dashboard</h2>
-                        <Select>
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Order by" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                            <SelectItem value="date">Creation date</SelectItem>
-                            <SelectItem value="name">Name</SelectItem>
-                            </SelectGroup>
-                        </SelectContent>
-                        </Select>
-                        <div className="flex items-center gap-3">
-                            <Checkbox 
-                                id="terms" 
-                                checked={showArchived}
-                                onCheckedChange={(checked) => {
-                                    const params = new URLSearchParams(searchParams.toString());
-                                    params.set('archived', checked ? 'true' : 'false');
-                                    router.push(`${pathname}?${params.toString()}`);
-                                }}
-                            />
-                            <Label htmlFor="terms" className="cursor-pointer">Show archived projects</Label>
-                        </div>
-
                         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button className="flex items-center gap-2 bg-[#9333ea] text-white">
@@ -223,6 +263,54 @@ export default function TaskPage() {
                                 </form>
                             </DialogContent>
                         </Dialog>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                        <div className="w-[260px]">
+                            <SearchBar value={query} onChange={(val) => {
+                                const params = new URLSearchParams(searchParams.toString());
+                                if (val) {
+                                    params.set('q', val);
+                                    params.set('sort', 'search');
+                                } else {
+                                    params.delete('q');
+                                    if (!params.has('sort') || params.get('sort') === 'search') {
+                                        params.set('sort', 'date');
+                                    }
+                                }
+                                if (!params.has('archived')) params.set('archived', 'false');
+                                router.push(`${pathname}?${params.toString()}`);
+                            }} />
+                        </div>
+                        <Select value={sort} onValueChange={(value) => {
+                            const params = new URLSearchParams(searchParams.toString());
+                            params.set('sort', value);
+                            // keep archived exactly as selected (so it defaults to false if not set)
+                            if (!params.has('archived')) params.set('archived', 'false');
+                            router.push(`${pathname}?${params.toString()}`);
+                        }}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Order by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                            <SelectItem value="date">Creation date</SelectItem>
+                            <SelectItem value="name">Name</SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-3">
+                            <Checkbox 
+                                id="terms" 
+                                checked={showArchived}
+                                onCheckedChange={(checked) => {
+                                    const params = new URLSearchParams(searchParams.toString());
+                                    params.set('archived', checked ? 'true' : 'false');
+                                    if (!params.has('sort')) params.set('sort', 'date');
+                                    router.push(`${pathname}?${params.toString()}`);
+                                }}
+                            />
+                            <Label htmlFor="terms" className="cursor-pointer">Show archived projects</Label>
+                        </div>
                     </div>
                     <p className="text-slate-600 mb-6">Welcome to your projects overview</p>
 
