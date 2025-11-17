@@ -30,7 +30,8 @@ export function CustomTable({
   const router = useRouter();
 
   const columns = data.length > 0 ? Object.keys(data[0]) : [];
-  const effectiveColumns = [...columns];
+  // Only show columns up to the number of headers provided
+  const effectiveColumns = columns.slice(0, columnHeaders.length);
 
   const handleRowClick = (id: string | number) => {
     router.push(`${path}/${id}`);
@@ -61,10 +62,6 @@ export function CustomTable({
                       {row[column]}
                     </TableCell>
                 ))}
-                {columnHeaders.length > effectiveColumns.length &&
-                    Array(columnHeaders.length - effectiveColumns.length)
-                        .fill(0)
-                        .map((_, i) => <TableCell key={`pad-${rowIndex}-${i}`} />)}
               </TableRow>
           ))}
         </TableBody>

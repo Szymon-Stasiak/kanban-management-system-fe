@@ -31,7 +31,7 @@ export default function SearchBar({ value = '', onChange, placeholder = 'Search.
         console.log('SearchBar: Debounced onChange, value:', newValue.trim());
         onChange(newValue.trim());
       }
-    }, 500); // 500ms debounce
+    }, 300); // 300ms debounce
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
