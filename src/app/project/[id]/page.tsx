@@ -176,6 +176,12 @@ export default function ProjectPage() {
 
                         <div className="col-span-2 flex justify-end items-end w-full h-full gap-3">
                             <button
+                                onClick={() => router.push(`/boards/project/${project.public_project_id}`)}
+                                className="px-6 py-3 rounded-lg bg-green-600 text-white text-lg font-semibold hover:bg-green-700 transition shadow-md"
+                            >
+                                View Board
+                            </button>
+                            <button
                                 onClick={() => setShowDeleteModal(true)}
                                 className="px-6 py-3 rounded-lg bg-gray-200 text-gray-800 text-lg font-semibold hover:bg-gray-300 transition shadow-md"
                             >
