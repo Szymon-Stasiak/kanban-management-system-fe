@@ -40,7 +40,6 @@ interface Project {
 
 function DashboardClient() {
     'use client';
-    const { useSearchParams } = require('next/navigation');
     // Router and URL state
     const router = useRouter();
     const pathname = usePathname();
