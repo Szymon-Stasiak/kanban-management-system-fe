@@ -1,5 +1,5 @@
 'use client';
-import React, {useEffect, useState, useMemo} from 'react';
+import React, {useEffect, useState, useMemo, Suspense} from 'react';
 import {useRouter, useSearchParams, usePathname} from 'next/navigation';
 import {authRequest} from '@/lib/auth';
 import SharedLayout from '@/components/layouts/SharedLayout';
@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/dialog"
 import {
     Select,
-    SelectContent,
     SelectGroup,
     SelectItem,
+    SelectContent,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
@@ -38,13 +38,16 @@ interface Project {
     createdAt?: string;
 }
 
-export default function TaskPage() {
+function DashboardClient() {
+    'use client';
+    const { useSearchParams } = require('next/navigation');
     // Router and URL state
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const showArchived = searchParams.get('archived') === 'true';
     const query = (searchParams.get('q') ?? '').trim();
+    const sort = searchParams.get('sort') ?? 'date';
     
     // Component state
     const [projects, setProjects] = useState<Project[]>([]);
@@ -57,22 +60,6 @@ export default function TaskPage() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-
-    // Set default URL parameters on mount
-    useEffect(() => {
-        // Ensure we set default params in a single update to avoid race conditions
-        const needsArchived = !searchParams.has('archived');
-        const needsSort = !searchParams.has('sort');
-
-        if (needsArchived || needsSort) {
-            const params = new URLSearchParams(searchParams.toString());
-            if (!params.has('archived')) params.set('archived', 'false');
-            if (!params.has('sort')) params.set('sort', 'date');
-            router.replace(`${pathname}?${params.toString()}`);
-        }
-
-    }, [searchParams, pathname, router]);
 
     // Fetch all projects on mount
     useEffect(() => {
@@ -146,8 +133,6 @@ export default function TaskPage() {
             [name]: value,
         }));
     };
-
-    const sort = searchParams.get('sort') ?? 'date';
 
     // Filter and sort projects based on URL params
     const filteredProjects = useMemo(() => {
@@ -283,7 +268,6 @@ export default function TaskPage() {
                                         params.set('sort', 'date');
                                     }
                                 }
-                                if (!params.has('archived')) params.set('archived', 'false');
                                 router.replace(`${pathname}?${params.toString()}`);
                             }} />
                         </div>
@@ -294,8 +278,6 @@ export default function TaskPage() {
                                 <Select value={sort} onValueChange={(value) => {
                                     const params = new URLSearchParams(searchParams.toString());
                                     params.set('sort', value);
-                                    // keep archived exactly as selected (so it defaults to false if not set)
-                                    if (!params.has('archived')) params.set('archived', 'false');
                                     router.replace(`${pathname}?${params.toString()}`);
                                 }}>
                                 <SelectTrigger className="w-[180px] bg-white">
@@ -316,7 +298,6 @@ export default function TaskPage() {
                                     onCheckedChange={(checked) => {
                                         const params = new URLSearchParams(searchParams.toString());
                                         params.set('archived', checked ? 'true' : 'false');
-                                        if (!params.has('sort')) params.set('sort', 'date');
                                         router.replace(`${pathname}?${params.toString()}`);
                                     }}
                                 />
@@ -366,5 +347,14 @@ export default function TaskPage() {
                 </div>
             </div>
         </SharedLayout>
+    );
+}
+
+
+export default function DashboardPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <DashboardClient />
+        </Suspense>
     );
 }
