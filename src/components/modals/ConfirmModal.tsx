@@ -26,19 +26,22 @@ export default function Modal({
 
     return (
         <AnimatePresence>
-            <motion.div
-                className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-            >
-                <motion.div
-                    className="bg-white rounded-2xl p-8 shadow-lg w-[90%] max-w-md text-center"
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                >
+                <div className="fixed inset-0 flex justify-center items-center z-50">
+                    {/* subtle overlay so the current page stays visible but dimmed
+                        Render overlay immediately (no fade) so the blur appears instantly.
+                        The modal itself (below) will animate its scale/opacity. */}
+                    <div
+                        className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+                        onClick={onClose}
+                    />
+
+                    <motion.div
+                        className="bg-white rounded-2xl p-8 shadow-lg w-[90%] max-w-md text-center relative z-10 flex flex-col justify-center min-h-[160px]"
+                        initial={{ scale: 0.9, opacity: 0, y: '-5vh' }}
+                        animate={{ scale: 1, opacity: 1, y: '-5vh' }}
+                        exit={{ scale: 0.9, opacity: 0, y: '-5vh' }}
+                        transition={{ duration: 0.2 }}
+                    >
                     <h3 className="text-2xl font-bold mb-3">{title}</h3>
                     <p className="text-slate-600 mb-6">{description}</p>
                     <div className="flex justify-center gap-4">
@@ -57,7 +60,7 @@ export default function Modal({
                         </button>
                     </div>
                 </motion.div>
-            </motion.div>
+            </div>
         </AnimatePresence>
     );
 }

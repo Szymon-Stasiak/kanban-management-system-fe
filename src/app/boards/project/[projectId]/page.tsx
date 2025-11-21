@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 type Task = {
   id: number;
@@ -53,6 +54,8 @@ export default function ProjectBoardsPage() {
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -162,6 +165,36 @@ export default function ProjectBoardsPage() {
 
   const handleViewTask = (task: Task) => {
     setViewingTask(task);
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm) {
+      // placeholder to satisfy possible linter; actual confirm handled via ConfirmModal
+    }
+
+    try {
+      setDeleting(true);
+      await authRequest({ method: "delete", url: `/tasks/${taskId}` });
+
+      // remove the task from local state
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          columns: board.columns?.map((col) => ({
+            ...col,
+            tasks: col.tasks?.filter((t) => t.id !== taskId),
+          })),
+        }))
+      );
+
+      setViewingTask(null);
+      setIsDeleteConfirmOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete task");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleRenameColumn = async (
@@ -365,16 +398,36 @@ export default function ProjectBoardsPage() {
             </div>
 
             <div className="flex justify-end">
-              <button
-                onClick={() => setViewingTask(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Close
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Delete task
+                </button>
+
+                <button
+                  onClick={() => setViewingTask(null)}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        show={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={() => viewingTask && handleDeleteTask(viewingTask.id)}
+        confirming={deleting}
+        title="Delete task"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
 
       {/* PAGE CONTENT */}
       <div className="max-w-5xl mx-auto mt-16">
@@ -486,9 +539,7 @@ export default function ProjectBoardsPage() {
                                     onClick={() => handleViewTask(task)}
                                     className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
                                   >
-                                    <h4 className="font-medium">
-                                      {task.title}
-                                    </h4>
+                                    <h4 className="font-medium">{task.title}</h4>
 
                                     <p className="text-xs text-gray-400 mt-1">
                                       Position: {task.position}
