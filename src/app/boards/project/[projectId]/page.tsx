@@ -5,10 +5,13 @@ import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
 
+type TaskPriority = "low" | "medium" | "high";
+
 type Task = {
   id: number;
   title: string;
   description?: string | null;
+  priority: TaskPriority;
   column_id: number;
 };
 
@@ -48,6 +51,7 @@ export default function ProjectBoardsPage() {
   const [taskDescription, setTaskDescription] = useState("");
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
+  const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -111,6 +115,7 @@ export default function ProjectBoardsPage() {
     setTaskTitle("");
     setTaskDescription("");
     setIsTaskModalOpen(true);
+    setTaskPriority("");
   };
 
   const handleCreateTask = async () => {
@@ -127,6 +132,7 @@ export default function ProjectBoardsPage() {
           title: taskTitle,
           description: taskDescription,
           column_id: selectedColumnId,
+          priority: taskPriority,
         },
       });
 
@@ -149,6 +155,7 @@ export default function ProjectBoardsPage() {
       setIsTaskModalOpen(false);
       setTaskTitle("");
       setTaskDescription("");
+      setTaskPriority("medium");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
     } catch (err) {
@@ -336,39 +343,53 @@ export default function ProjectBoardsPage() {
 
             <label className="block text-sm font-medium mb-1">Title *</label>
             <input
-              type="text"
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              className="w-full p-2 mb-3 border rounded"
-              placeholder="Enter task title"
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                className="w-full p-2 mb-3 border rounded"
+                placeholder="Enter task title"
             />
 
             <label className="block text-sm font-medium mb-1">Description</label>
             <textarea
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              className="w-full p-2 mb-4 border rounded"
-              rows={4}
-              placeholder="Enter task description (optional)"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                className="w-full p-2 mb-4 border rounded"
+                rows={4}
+                placeholder="Enter task description (optional)"
             />
+
+            <label className="block text-sm font-medium mb-1">Task priority</label>
+            <select
+                value={taskPriority}
+                onChange={(e) =>
+                    setTaskPriority(e.target.value as "low" | "medium" | "high")
+                }
+                className="w-full p-2 mb-4 border rounded"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
 
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => {
-                  setIsTaskModalOpen(false);
-                  setTaskTitle("");
-                  setTaskDescription("");
-                  setSelectedColumnId(null);
-                  setSelectedBoardId(null);
-                }}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                  onClick={() => {
+                    setIsTaskModalOpen(false);
+                    setTaskTitle("");
+                    setTaskDescription("");
+                    setTaskPriority("medium");
+                    setSelectedColumnId(null);
+                    setSelectedBoardId(null);
+                  }}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
                 Cancel
               </button>
 
               <button
-                onClick={handleCreateTask}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={handleCreateTask}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Create
               </button>
@@ -379,40 +400,49 @@ export default function ProjectBoardsPage() {
 
       {/* VIEW TASK MODAL */}
       {viewingTask && (
-        <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
-          <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
-            <h2 className="text-xl font-bold mb-4">Task Details</h2>
+          <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
+            <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
+              <h2 className="text-xl font-bold mb-4">Task Details</h2>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Title
-              </label>
-              <p className="text-lg font-semibold">{viewingTask.title}</p>
-            </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Title
+                </label>
+                <p className="text-lg font-semibold">{viewingTask.title}</p>
+              </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Description
-              </label>
-              {viewingTask.description ? (
-                <p className="text-gray-600 whitespace-pre-wrap">
-                  {viewingTask.description}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Description
+                </label>
+                {viewingTask.description ? (
+                    <p className="text-gray-600 whitespace-pre-wrap">
+                      {viewingTask.description}
+                    </p>
+                ) : (
+                    <p className="text-gray-400 italic">No description provided</p>
+                )}
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Task priority
+                </label>
+                <p className="text-gray-600 capitalize">
+                  {viewingTask.priority ?? "medium"}
                 </p>
-              ) : (
-                <p className="text-gray-400 italic">No description provided</p>
-              )}
-            </div>
+              </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setViewingTask(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Close
-              </button>
+              <div className="flex justify-end">
+                <button
+                    onClick={() => setViewingTask(null)}
+                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* PAGE CONTENT */}
@@ -421,8 +451,8 @@ export default function ProjectBoardsPage() {
           <h1 className="text-3xl font-bold">All Boards</h1>
 
           <button
-            onClick={() => router.push(`/boards/create/project/${projectId}`)}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              onClick={() => router.push(`/boards/create/project/${projectId}`)}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             + Create Board
           </button>
