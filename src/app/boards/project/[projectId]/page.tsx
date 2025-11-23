@@ -13,6 +13,8 @@ type Task = {
   description?: string | null;
   priority: TaskPriority;
   column_id: number;
+
+  due_date: string;
 };
 
 type Column = {
@@ -52,6 +54,7 @@ export default function ProjectBoardsPage() {
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
   const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
+  const [taskDueDate, setTaskDueDate] = useState<string>("");
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -116,6 +119,7 @@ export default function ProjectBoardsPage() {
     setTaskDescription("");
     setIsTaskModalOpen(true);
     setTaskPriority("");
+    setTaskDueDate("");
   };
 
   const handleCreateTask = async () => {
@@ -133,6 +137,7 @@ export default function ProjectBoardsPage() {
           description: taskDescription,
           column_id: selectedColumnId,
           priority: taskPriority,
+          due_date: taskDueDate ? new Date(taskDueDate).toISOString(): null,
         },
       });
 
@@ -158,6 +163,7 @@ export default function ProjectBoardsPage() {
       setTaskPriority("medium");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
+      setTaskDueDate("");
     } catch (err) {
       console.error(err);
       alert("Failed to create task");
@@ -285,6 +291,17 @@ export default function ProjectBoardsPage() {
     }
   };
 
+  const formatDueDate = (date: Date | string) => {
+    const d = typeof date === "string" ? new Date(date) : date;
+    if (Number.isNaN(d.getTime())) return "Invalid date";
+
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+
+    return `${day}-${month}-${year}`; // DD-MM-YYYY
+  };
+
   return (
     <SharedLayout>
       {/* EDIT BOARD MODAL */}
@@ -372,6 +389,16 @@ export default function ProjectBoardsPage() {
               <option value="high">High</option>
             </select>
 
+            <label className="block text-sm font-medium mb-1">Due date</label>
+            <input
+                type="date"
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+                className="w-full p-2 mb-4 border rounded"
+                // optional: don’t allow past dates
+                min={new Date().toISOString().split("T")[0]}
+            />
+
             <div className="flex justify-end gap-2">
               <button
                   onClick={() => {
@@ -381,6 +408,7 @@ export default function ProjectBoardsPage() {
                     setTaskPriority("medium");
                     setSelectedColumnId(null);
                     setSelectedBoardId(null);
+                    setTaskDueDate("");
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
@@ -430,6 +458,17 @@ export default function ProjectBoardsPage() {
                 </label>
                 <p className="text-gray-600 capitalize">
                   {viewingTask.priority ?? "medium"}
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Due date
+                </label>
+                <p className="text-gray-600">
+                  {viewingTask.due_date
+                      ? formatDueDate(viewingTask.due_date)
+                      : "No due date set"}
                 </p>
               </div>
 
