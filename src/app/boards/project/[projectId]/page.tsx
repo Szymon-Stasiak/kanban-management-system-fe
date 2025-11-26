@@ -5,12 +5,17 @@ import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
 
+type TaskPriority = "low" | "medium" | "high";
+
 type Task = {
   id: number;
   title: string;
   position: number;
   description?: string | null;
+  priority: TaskPriority;
   column_id: number;
+
+  due_date: string;
 };
 
 type Column = {
@@ -50,6 +55,8 @@ export default function ProjectBoardsPage() {
   const [taskPosition, setTaskPosition] = useState<number>(0);
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
+  const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
+  const [taskDueDate, setTaskDueDate] = useState<string>("");
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -72,6 +79,7 @@ export default function ProjectBoardsPage() {
                 url: `/columns/${board.id}`,
               });
 
+              // fetch tasks for every column
               const columnsWithTasks = await Promise.all(
                 columns.map(async (col) => {
                   const tasks = await authRequest<Task[]>({
@@ -113,6 +121,8 @@ export default function ProjectBoardsPage() {
     setTaskDescription("");
     setTaskPosition(0);
     setIsTaskModalOpen(true);
+    setTaskPriority("");
+    setTaskDueDate("");
   };
 
   const handleCreateTask = async () => {
@@ -129,10 +139,13 @@ export default function ProjectBoardsPage() {
           title: taskTitle,
           description: taskDescription,
           column_id: selectedColumnId,
-          position: taskPosition, 
+          position: taskPosition,
+          priority: taskPriority,
+          due_date: taskDueDate ? new Date(taskDueDate).toISOString(): null,
         },
       });
 
+      // Update the boards state with the new task
       setBoards((prev) =>
         prev.map((board) =>
           board.id === selectedBoardId
@@ -152,8 +165,10 @@ export default function ProjectBoardsPage() {
       setTaskTitle("");
       setTaskDescription("");
       setTaskPosition(0);
+      setTaskPriority("medium");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
+      setTaskDueDate("");
     } catch (err) {
       console.error(err);
       alert("Failed to create task");
@@ -281,6 +296,17 @@ export default function ProjectBoardsPage() {
     }
   };
 
+  const formatDueDate = (date: Date | string) => {
+    const d = typeof date === "string" ? new Date(date) : date;
+    if (Number.isNaN(d.getTime())) return "Invalid date";
+
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+
+    return `${day}-${month}-${year}`; // DD-MM-YYYY
+  };
+
   return (
     <SharedLayout>
       {/* CREATE TASK MODAL */}
@@ -291,21 +317,23 @@ export default function ProjectBoardsPage() {
 
             <label className="block text-sm font-medium mb-1">Title *</label>
             <input
-              type="text"
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              className="w-full p-2 mb-3 border rounded"
-              placeholder="Enter task title"
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                className="w-full p-2 mb-3 border rounded"
+                placeholder="Enter task title"
             />
 
             <label className="block text-sm font-medium mb-1">
               Description
             </label>
             <textarea
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              className="w-full p-2 mb-3 border rounded"
-              placeholder="Enter task description"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                className="w-full p-2 mb-4 border rounded"
+                rows={4}
+                placeholder="Enter task description (optional)"
+
             />
 
             <label className="block text-sm font-medium mb-1">
@@ -319,16 +347,48 @@ export default function ProjectBoardsPage() {
               placeholder="0"
             />
 
+            <label className="block text-sm font-medium mb-1">Task priority</label>
+            <select
+                value={taskPriority}
+                onChange={(e) =>
+                    setTaskPriority(e.target.value as "low" | "medium" | "high")
+                }
+                className="w-full p-2 mb-4 border rounded"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+
+            <label className="block text-sm font-medium mb-1">Due date</label>
+            <input
+                type="date"
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+                className="w-full p-2 mb-4 border rounded"
+                // optional: don’t allow past dates
+                min={new Date().toISOString().split("T")[0]}
+            />
+
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setIsTaskModalOpen(false)}
-                className="px-4 py-2 bg-gray-300 rounded"
+                  onClick={() => {
+                    setIsTaskModalOpen(false);
+                    setTaskTitle("");
+                    setTaskDescription("");
+                    setTaskPriority("medium");
+                    setSelectedColumnId(null);
+                    setSelectedBoardId(null);
+                    setTaskDueDate("");
+                  }}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
                 Cancel
               </button>
+
               <button
                 onClick={handleCreateTask}
-                className="px-4 py-2 bg-blue-500 text-white rounded"
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Create
               </button>
@@ -340,40 +400,60 @@ export default function ProjectBoardsPage() {
 
       {/* VIEW TASK MODAL */}
       {viewingTask && (
-        <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
-          <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
-            <h2 className="text-xl font-bold mb-4">Task Details</h2>
+          <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
+            <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
+              <h2 className="text-xl font-bold mb-4">Task Details</h2>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Title
-              </label>
-              <p className="text-lg font-semibold">{viewingTask.title}</p>
-            </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Title
+                </label>
+                <p className="text-lg font-semibold">{viewingTask.title}</p>
+              </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Description
-              </label>
-              {viewingTask.description ? (
-                <p className="text-gray-600 whitespace-pre-wrap">
-                  {viewingTask.description}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Description
+                </label>
+                {viewingTask.description ? (
+                    <p className="text-gray-600 whitespace-pre-wrap">
+                      {viewingTask.description}
+                    </p>
+                ) : (
+                    <p className="text-gray-400 italic">No description provided</p>
+                )}
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Task priority
+                </label>
+                <p className="text-gray-600 capitalize">
+                  {viewingTask.priority ?? "medium"}
                 </p>
-              ) : (
-                <p className="text-gray-400 italic">No description provided</p>
-              )}
-            </div>
+              </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setViewingTask(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Close
-              </button>
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Due date
+                </label>
+                <p className="text-gray-600">
+                  {viewingTask.due_date
+                      ? formatDueDate(viewingTask.due_date)
+                      : "No due date set"}
+                </p>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                    onClick={() => setViewingTask(null)}
+                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* PAGE CONTENT */}
@@ -502,9 +582,7 @@ export default function ProjectBoardsPage() {
 
                           {/* Add Task */}
                           <button
-                            onClick={() =>
-                              handleOpenTaskModal(board.id, col.id)
-                            }
+                            onClick={() => handleOpenTaskModal(board.id, col.id)}
                             className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                           >
                             + Add Task
