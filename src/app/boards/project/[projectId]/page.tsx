@@ -121,7 +121,7 @@ export default function ProjectBoardsPage() {
     setTaskDescription("");
     setTaskPosition(0);
     setIsTaskModalOpen(true);
-    setTaskPriority("");
+    setTaskPriority("medium");
     setTaskDueDate("");
   };
 
