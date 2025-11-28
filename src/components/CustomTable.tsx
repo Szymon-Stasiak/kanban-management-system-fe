@@ -17,6 +17,9 @@ interface CustomTableProps {
   path: string;
   rowClassName?: string;
   cellClassName?: (key: string, value: any) => string;
+  onHeaderClick?: (header: string) => void;
+  sortColumn?: string | null;
+  sortDirection?: 'asc' | 'desc';
 }
 
 export function CustomTable({
@@ -26,6 +29,9 @@ export function CustomTable({
                               path,
                               rowClassName = "",
                               cellClassName,
+                              onHeaderClick,
+                              sortColumn,
+                              sortDirection,
                             }: CustomTableProps) {
   const router = useRouter();
 
@@ -42,9 +48,35 @@ export function CustomTable({
         {caption && <TableCaption>{caption}</TableCaption>}
         <TableHeader>
           <TableRow>
-            {columnHeaders.map((header, index) => (
-                <TableHead key={index}>{header}</TableHead>
-            ))}
+            {columnHeaders.map((header, index) => {
+              const columnMap: Record<string, string> = {
+                'Name': 'name',
+                'Description': 'description',
+                'Priority': 'priority',
+                'Completed': 'completed',
+                'Created at': 'createdAt',
+                'Due Date': 'due_date',
+                'Column': 'column',
+                'Position': 'position'
+              };
+              const isActive = sortColumn === columnMap[header];
+              return (
+                <TableHead 
+                  key={index}
+                  onClick={() => onHeaderClick?.(header)}
+                  className={onHeaderClick ? 'cursor-pointer hover:bg-slate-100 select-none' : ''}
+                >
+                  <div className="flex items-center gap-1">
+                    {header}
+                    {onHeaderClick && isActive && (
+                      <span className="text-xs">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
         <TableBody>
