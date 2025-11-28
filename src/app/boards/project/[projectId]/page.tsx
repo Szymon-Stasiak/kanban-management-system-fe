@@ -4,18 +4,29 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
-
-type TaskPriority = "low" | "medium" | "high";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Task = {
   id: number;
   title: string;
-  position: number;
   description?: string | null;
-  priority: TaskPriority;
   column_id: number;
-
-  due_date: string;
 };
 
 type Column = {
@@ -32,6 +43,113 @@ type Board = {
   description?: string | null;
   columns?: Column[];
 };
+
+// Sortable Column Component
+function SortableColumn({
+  column,
+  boardId,
+  onRename,
+  onDelete,
+  onAddTask,
+  onViewTask,
+}: {
+  column: Column;
+  boardId: number;
+  onRename: (boardId: number, columnId: number, currentName: string) => void;
+  onDelete: (boardId: number, columnId: number) => void;
+  onAddTask: (boardId: number, columnId: number) => void;
+  onViewTask: (task: Task) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: column.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="bg-gray-50 p-5 rounded-lg shadow-sm border">
+      {/* Column Header with Drag Handle */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2 flex-1">
+          {/* Drag Handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+            title="Drag to reorder"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
+          <div>
+            <h3 className="font-semibold text-lg">{column.name}</h3>
+            <p className="text-sm text-gray-500">
+              Position: {column.position} | Tasks: {column.tasks?.length || 0}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => onRename(boardId, column.id, column.name)}
+            className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
+          >
+            Rename
+          </button>
+
+          <button
+            onClick={() => onDelete(boardId, column.id)}
+            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {/* Tasks List */}
+      <div className="space-y-3 mb-4">
+        {column.tasks && column.tasks.length > 0 ? (
+          column.tasks.map((task) => (
+            <div
+              key={task.id}
+              onClick={() => onViewTask(task)}
+              className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <h4 className="font-medium">{task.title}</h4>
+            </div>
+          ))
+        ) : (
+          <p className="text-gray-400 text-sm">No tasks.</p>
+        )}
+      </div>
+
+      {/* Add Task Button */}
+      <button
+        onClick={() => onAddTask(boardId, column.id)}
+        className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+      >
+        + Add Task
+      </button>
+    </div>
+  );
+}
 
 export default function ProjectBoardsPage() {
   const router = useRouter();
@@ -52,14 +170,19 @@ export default function ProjectBoardsPage() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [taskPosition, setTaskPosition] = useState<number>(0);
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
-  const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
-  const [taskDueDate, setTaskDueDate] = useState<string>("");
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+
+  // DnD Kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     if (!projectId) return;
@@ -79,14 +202,12 @@ export default function ProjectBoardsPage() {
                 url: `/columns/${board.id}`,
               });
 
-              // fetch tasks for every column
               const columnsWithTasks = await Promise.all(
                 columns.map(async (col) => {
                   const tasks = await authRequest<Task[]>({
                     method: "get",
                     url: `/tasks/${col.id}`,
                   });
-
                   return { ...col, tasks };
                 })
               );
@@ -110,6 +231,87 @@ export default function ProjectBoardsPage() {
     fetchBoards();
   }, [projectId]);
 
+  const handleDragEnd = async (event: DragEndEvent, boardId: number) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const board = boards.find((b) => b.id === boardId);
+    if (!board || !board.columns) return;
+
+    const oldIndex = board.columns.findIndex((col) => col.id === active.id);
+    const newIndex = board.columns.findIndex((col) => col.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistically update UI
+    const reorderedColumns = arrayMove(board.columns, oldIndex, newIndex);
+    
+    setBoards((prev) =>
+      prev.map((b) =>
+        b.id === boardId ? { ...b, columns: reorderedColumns } : b
+      )
+    );
+
+    // Send update to backend
+    try {
+      await authRequest({
+        method: "put",
+        url: `/columns/${active.id}/reorder`,
+        data: {
+          new_position: newIndex + 1,
+        },
+      });
+
+      // Refetch to ensure consistency
+      const updatedColumns = await authRequest<Column[]>({
+        method: "get",
+        url: `/columns/${boardId}`,
+      });
+
+      const columnsWithTasks = await Promise.all(
+        updatedColumns.map(async (col) => {
+          const tasks = await authRequest<Task[]>({
+            method: "get",
+            url: `/tasks/${col.id}`,
+          });
+          return { ...col, tasks };
+        })
+      );
+
+      setBoards((prev) =>
+        prev.map((b) =>
+          b.id === boardId ? { ...b, columns: columnsWithTasks } : b
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder column. Refreshing...");
+      
+      // Revert on error
+      const originalColumns = await authRequest<Column[]>({
+        method: "get",
+        url: `/columns/${boardId}`,
+      });
+
+      const columnsWithTasks = await Promise.all(
+        originalColumns.map(async (col) => {
+          const tasks = await authRequest<Task[]>({
+            method: "get",
+            url: `/tasks/${col.id}`,
+          });
+          return { ...col, tasks };
+        })
+      );
+
+      setBoards((prev) =>
+        prev.map((b) =>
+          b.id === boardId ? { ...b, columns: columnsWithTasks } : b
+        )
+      );
+    }
+  };
+
   const handleAddColumn = (boardId: number) => {
     router.push(`/columns/create?boardId=${boardId}&projectId=${projectId}`);
   };
@@ -119,10 +321,7 @@ export default function ProjectBoardsPage() {
     setSelectedColumnId(columnId);
     setTaskTitle("");
     setTaskDescription("");
-    setTaskPosition(0);
     setIsTaskModalOpen(true);
-    setTaskPriority("medium");
-    setTaskDueDate("");
   };
 
   const handleCreateTask = async () => {
@@ -139,13 +338,9 @@ export default function ProjectBoardsPage() {
           title: taskTitle,
           description: taskDescription,
           column_id: selectedColumnId,
-          position: taskPosition,
-          priority: taskPriority,
-          due_date: taskDueDate ? new Date(taskDueDate).toISOString(): null,
         },
       });
 
-      // Update the boards state with the new task
       setBoards((prev) =>
         prev.map((board) =>
           board.id === selectedBoardId
@@ -164,11 +359,8 @@ export default function ProjectBoardsPage() {
       setIsTaskModalOpen(false);
       setTaskTitle("");
       setTaskDescription("");
-      setTaskPosition(0);
-      setTaskPriority("medium");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
-      setTaskDueDate("");
     } catch (err) {
       console.error(err);
       alert("Failed to create task");
@@ -182,8 +374,7 @@ export default function ProjectBoardsPage() {
   const handleRenameColumn = async (
     boardId: number,
     columnId: number,
-    currentName: string,
-    currentPosition: number
+    currentName: string
   ) => {
     const newName = prompt("Enter new column name:", currentName);
     if (!newName) return;
@@ -194,7 +385,6 @@ export default function ProjectBoardsPage() {
         url: `/columns/${columnId}`,
         data: {
           name: newName,
-          position: currentPosition,
           board_id: boardId,
         },
       });
@@ -223,14 +413,24 @@ export default function ProjectBoardsPage() {
     try {
       await authRequest({ method: "delete", url: `/columns/${columnId}` });
 
+      const updatedColumns = await authRequest<Column[]>({
+        method: "get",
+        url: `/columns/${boardId}`,
+      });
+
+      const columnsWithTasks = await Promise.all(
+        updatedColumns.map(async (col) => {
+          const tasks = await authRequest<Task[]>({
+            method: "get",
+            url: `/tasks/${col.id}`,
+          });
+          return { ...col, tasks };
+        })
+      );
+
       setBoards((prev) =>
         prev.map((board) =>
-          board.id === boardId
-            ? {
-                ...board,
-                columns: board.columns?.filter((col) => col.id !== columnId),
-              }
-            : board
+          board.id === boardId ? { ...board, columns: columnsWithTasks } : board
         )
       );
     } catch (err) {
@@ -296,19 +496,56 @@ export default function ProjectBoardsPage() {
     }
   };
 
-  const formatDueDate = (date: Date | string) => {
-    const d = typeof date === "string" ? new Date(date) : date;
-    if (Number.isNaN(d.getTime())) return "Invalid date";
-
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-
-    return `${day}-${month}-${year}`; // DD-MM-YYYY
-  };
-
   return (
     <SharedLayout>
+      {/* EDIT BOARD MODAL */}
+      {editingBoard && (
+        <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
+          <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Edit Board</h2>
+
+            <label className="block text-sm font-medium mb-1">Name</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full p-2 mb-3 border rounded"
+            />
+
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              className="w-full p-2 mb-3 border rounded"
+            />
+
+            <label className="block text-sm font-medium mb-1">Color</label>
+            <input
+              type="color"
+              value={editColor}
+              onChange={(e) => setEditColor(e.target.value)}
+              className="w-16 h-10 mb-4 cursor-pointer"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setEditingBoard(null)}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSaveBoard}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CREATE TASK MODAL */}
       {isTaskModalOpen && (
         <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
@@ -317,71 +554,32 @@ export default function ProjectBoardsPage() {
 
             <label className="block text-sm font-medium mb-1">Title *</label>
             <input
-                type="text"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                className="w-full p-2 mb-3 border rounded"
-                placeholder="Enter task title"
+              type="text"
+              value={taskTitle}
+              onChange={(e) => setTaskTitle(e.target.value)}
+              className="w-full p-2 mb-3 border rounded"
+              placeholder="Enter task title"
             />
 
-            <label className="block text-sm font-medium mb-1">
-              Description
-            </label>
+            <label className="block text-sm font-medium mb-1">Description</label>
             <textarea
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                className="w-full p-2 mb-4 border rounded"
-                rows={4}
-                placeholder="Enter task description (optional)"
-
-            />
-
-            <label className="block text-sm font-medium mb-1">
-              Position
-            </label>
-            <input
-              type="number"
-              value={taskPosition}
-              onChange={(e) => setTaskPosition(Number(e.target.value))}
+              value={taskDescription}
+              onChange={(e) => setTaskDescription(e.target.value)}
               className="w-full p-2 mb-4 border rounded"
-              placeholder="0"
-            />
-
-            <label className="block text-sm font-medium mb-1">Task priority</label>
-            <select
-                value={taskPriority}
-                onChange={(e) =>
-                    setTaskPriority(e.target.value as "low" | "medium" | "high")
-                }
-                className="w-full p-2 mb-4 border rounded"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-
-            <label className="block text-sm font-medium mb-1">Due date</label>
-            <input
-                type="date"
-                value={taskDueDate}
-                onChange={(e) => setTaskDueDate(e.target.value)}
-                className="w-full p-2 mb-4 border rounded"
-                // optional: don’t allow past dates
-                min={new Date().toISOString().split("T")[0]}
+              rows={4}
+              placeholder="Enter task description (optional)"
             />
 
             <div className="flex justify-end gap-2">
               <button
-                  onClick={() => {
-                    setIsTaskModalOpen(false);
-                    setTaskTitle("");
-                    setTaskDescription("");
-                    setTaskPriority("medium");
-                    setSelectedColumnId(null);
-                    setSelectedBoardId(null);
-                    setTaskDueDate("");
-                  }}
-                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                onClick={() => {
+                  setIsTaskModalOpen(false);
+                  setTaskTitle("");
+                  setTaskDescription("");
+                  setSelectedColumnId(null);
+                  setSelectedBoardId(null);
+                }}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
                 Cancel
               </button>
@@ -397,67 +595,46 @@ export default function ProjectBoardsPage() {
         </div>
       )}
 
-
       {/* VIEW TASK MODAL */}
       {viewingTask && (
-          <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
-            <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
-              <h2 className="text-xl font-bold mb-4">Task Details</h2>
+        <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
+          <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Task Details</h2>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Title
-                </label>
-                <p className="text-lg font-semibold">{viewingTask.title}</p>
-              </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2 text-gray-700">
+                Title
+              </label>
+              <p className="text-lg font-semibold">{viewingTask.title}</p>
+            </div>
 
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Description
-                </label>
-                {viewingTask.description ? (
-                    <p className="text-gray-600 whitespace-pre-wrap">
-                      {viewingTask.description}
-                    </p>
-                ) : (
-                    <p className="text-gray-400 italic">No description provided</p>
-                )}
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Task priority
-                </label>
-                <p className="text-gray-600 capitalize">
-                  {viewingTask.priority ?? "medium"}
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2 text-gray-700">
+                Description
+              </label>
+              {viewingTask.description ? (
+                <p className="text-gray-600 whitespace-pre-wrap">
+                  {viewingTask.description}
                 </p>
-              </div>
+              ) : (
+                <p className="text-gray-400 italic">No description provided</p>
+              )}
+            </div>
 
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Due date
-                </label>
-                <p className="text-gray-600">
-                  {viewingTask.due_date
-                      ? formatDueDate(viewingTask.due_date)
-                      : "No due date set"}
-                </p>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                    onClick={() => setViewingTask(null)}
-                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setViewingTask(null)}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Close
+              </button>
             </div>
           </div>
+        </div>
       )}
 
       {/* PAGE CONTENT */}
-      <div className="max-w-5xl mx-auto mt-16">
+      <div className="max-w-7xl mx-auto mt-16">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">All Boards</h1>
 
@@ -509,90 +686,37 @@ export default function ProjectBoardsPage() {
                     </div>
                   </div>
 
-                  {/* COLUMNS WITH TASKS */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                    {board.columns?.length ? (
-                      board.columns.map((col) => (
-                        <div
-                          key={col.id}
-                          className="bg-gray-50 p-5 rounded-lg shadow-sm border"
-                        >
-                          {/* Column Header */}
-                          <div className="flex justify-between items-center mb-4">
-                            <div>
-                              <h3 className="font-semibold text-lg">
-                                {col.name}
-                              </h3>
-                              <p className="text-sm text-gray-500">
-                                Position: {col.position} | Tasks:{" "}
-                                {col.tasks?.length || 0}
-                              </p>
-                            </div>
-
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() =>
-                                  handleRenameColumn(
-                                    board.id,
-                                    col.id,
-                                    col.name,
-                                    col.position
-                                  )
-                                }
-                                className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
-                              >
-                                Rename
-                              </button>
-
-                              <button
-                                onClick={() =>
-                                  handleDeleteColumn(board.id, col.id)
-                                }
-                                className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* TASKS LIST */}
-                          <div className="space-y-3 mb-4">
-                            {col.tasks && col.tasks.length > 0 ? (
-                              col.tasks
-                                .sort((a, b) => a.position - b.position)
-                                .map((task) => (
-                                  <div
-                                    key={task.id}
-                                    onClick={() => handleViewTask(task)}
-                                    className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
-                                  >
-                                    <h4 className="font-medium">
-                                      {task.title}
-                                    </h4>
-
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Position: {task.position}
-                                    </p>
-                                  </div>
-                                ))
-                            ) : (
-                              <p className="text-gray-400 text-sm">No tasks.</p>
-                            )}
-                          </div>
-
-                          {/* Add Task */}
-                          <button
-                            onClick={() => handleOpenTaskModal(board.id, col.id)}
-                            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                          >
-                            + Add Task
-                          </button>
+                  {/* COLUMNS WITH DRAG AND DROP */}
+                  {board.columns?.length ? (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => handleDragEnd(event, board.id)}
+                    >
+                      <SortableContext
+                        items={board.columns.map((col) => col.id)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+                          {board.columns
+                            .sort((a, b) => a.position - b.position)
+                            .map((col) => (
+                              <SortableColumn
+                                key={col.id}
+                                column={col}
+                                boardId={board.id}
+                                onRename={handleRenameColumn}
+                                onDelete={handleDeleteColumn}
+                                onAddTask={handleOpenTaskModal}
+                                onViewTask={handleViewTask}
+                              />
+                            ))}
                         </div>
-                      ))
-                    ) : (
-                      <p>No columns found.</p>
-                    )}
-                  </div>
+                      </SortableContext>
+                    </DndContext>
+                  ) : (
+                    <p className="mb-6">No columns found.</p>
+                  )}
 
                   <button
                     onClick={() => handleAddColumn(board.id)}

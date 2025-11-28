@@ -12,18 +12,16 @@ function CreateColumnForm() {
   const projectId = searchParams.get("projectId");
 
   const [name, setName] = useState("");
-  const [position, setPosition] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    
-  if (!boardId || !projectId) {
-    setError("Missing boardId or projectId");
-    return;
-  }
+    if (!boardId || !projectId) {
+      setError("Missing boardId or projectId");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -34,7 +32,6 @@ function CreateColumnForm() {
         url: "/columns/create",
         data: {
           name,
-          position,
           board_id: parseInt(boardId),
         },
       });
@@ -58,18 +55,6 @@ function CreateColumnForm() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="w-full p-2 border rounded"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Position</label>
-          <input
-            type="number"
-            value={position}
-            onChange={(e) => setPosition(parseInt(e.target.value))}
-            required
-            min={1}
             className="w-full p-2 border rounded"
           />
         </div>
