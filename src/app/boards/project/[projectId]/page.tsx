@@ -165,7 +165,6 @@ export default function ProjectBoardsPage() {
     boardId: number,
     columnId: number,
     currentName: string,
-    currentPosition: number
   ) => {
     const newName = prompt("Enter new column name:", currentName);
     if (!newName) return;
@@ -176,8 +175,7 @@ export default function ProjectBoardsPage() {
         url: `/columns/${columnId}`,
         data: {
           name: newName,
-          position: currentPosition,
-          board_id: boardId,
+          board_id: boardId
         },
       });
 
@@ -200,26 +198,39 @@ export default function ProjectBoardsPage() {
   };
 
   const handleDeleteColumn = async (boardId: number, columnId: number) => {
-    if (!confirm("Are you sure you want to delete this column?")) return;
+  if (!confirm("Are you sure you want to delete this column?")) return;
 
-    try {
-      await authRequest({ method: "delete", url: `/columns/${columnId}` });
+  try {
+    await authRequest({ method: "delete", url: `/columns/${columnId}` });
 
-      setBoards((prev) =>
-        prev.map((board) =>
-          board.id === boardId
-            ? {
-                ...board,
-                columns: board.columns?.filter((col) => col.id !== columnId),
-              }
-            : board
-        )
-      );
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete column");
-    }
-  };
+    // Refetch columns for this board to get updated positions
+    const updatedColumns = await authRequest<Column[]>({
+      method: "get",
+      url: `/columns/${boardId}`,
+    });
+
+    const columnsWithTasks = await Promise.all(
+      updatedColumns.map(async (col) => {
+        const tasks = await authRequest<Task[]>({
+          method: "get",
+          url: `/tasks/${col.id}`,
+        });
+        return { ...col, tasks };
+      })
+    );
+
+    setBoards((prev) =>
+      prev.map((board) =>
+        board.id === boardId
+          ? { ...board, columns: columnsWithTasks }
+          : board
+      )
+    );
+  } catch (err) {
+    console.error(err);
+    alert("Failed to delete column");
+  }
+};
 
   const handleDeleteBoard = async (boardId: number) => {
     if (!confirm("Are you sure you want to delete this board?")) return;
@@ -471,11 +482,13 @@ export default function ProjectBoardsPage() {
                   {/* COLUMNS WITH TASKS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                     {board.columns?.length ? (
-                      board.columns.map((col) => (
-                        <div
-                          key={col.id}
-                          className="bg-gray-50 p-5 rounded-lg shadow-sm border"
-                        >
+                        board.columns
+                          .sort((a, b) => a.position - b.position)
+                          .map((col) => (
+                            <div
+                              key={col.id}
+                              className="bg-gray-50 p-5 rounded-lg shadow-sm border"
+                            >
                           {/* Column Header */}
                               <div className="flex justify-between items-center mb-4">
                                 <div>
@@ -493,8 +506,7 @@ export default function ProjectBoardsPage() {
                                       handleRenameColumn(
                                         board.id,
                                         col.id,
-                                        col.name,
-                                        col.position
+                                        col.name
                                       )
                                     }
                                     className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
