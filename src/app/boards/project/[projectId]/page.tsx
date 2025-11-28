@@ -4,6 +4,23 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Task = {
   id: number;
@@ -26,6 +43,113 @@ type Board = {
   description?: string | null;
   columns?: Column[];
 };
+
+// Sortable Column Component
+function SortableColumn({
+  column,
+  boardId,
+  onRename,
+  onDelete,
+  onAddTask,
+  onViewTask,
+}: {
+  column: Column;
+  boardId: number;
+  onRename: (boardId: number, columnId: number, currentName: string) => void;
+  onDelete: (boardId: number, columnId: number) => void;
+  onAddTask: (boardId: number, columnId: number) => void;
+  onViewTask: (task: Task) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: column.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="bg-gray-50 p-5 rounded-lg shadow-sm border">
+      {/* Column Header with Drag Handle */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2 flex-1">
+          {/* Drag Handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+            title="Drag to reorder"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
+          <div>
+            <h3 className="font-semibold text-lg">{column.name}</h3>
+            <p className="text-sm text-gray-500">
+              Position: {column.position} | Tasks: {column.tasks?.length || 0}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => onRename(boardId, column.id, column.name)}
+            className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
+          >
+            Rename
+          </button>
+
+          <button
+            onClick={() => onDelete(boardId, column.id)}
+            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {/* Tasks List */}
+      <div className="space-y-3 mb-4">
+        {column.tasks && column.tasks.length > 0 ? (
+          column.tasks.map((task) => (
+            <div
+              key={task.id}
+              onClick={() => onViewTask(task)}
+              className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <h4 className="font-medium">{task.title}</h4>
+            </div>
+          ))
+        ) : (
+          <p className="text-gray-400 text-sm">No tasks.</p>
+        )}
+      </div>
+
+      {/* Add Task Button */}
+      <button
+        onClick={() => onAddTask(boardId, column.id)}
+        className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+      >
+        + Add Task
+      </button>
+    </div>
+  );
+}
 
 export default function ProjectBoardsPage() {
   const router = useRouter();
@@ -52,6 +176,14 @@ export default function ProjectBoardsPage() {
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
+  // DnD Kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
     if (!projectId) return;
 
@@ -70,14 +202,12 @@ export default function ProjectBoardsPage() {
                 url: `/columns/${board.id}`,
               });
 
-              // fetch tasks for every column
               const columnsWithTasks = await Promise.all(
                 columns.map(async (col) => {
                   const tasks = await authRequest<Task[]>({
                     method: "get",
                     url: `/tasks/${col.id}`,
                   });
-
                   return { ...col, tasks };
                 })
               );
@@ -100,6 +230,87 @@ export default function ProjectBoardsPage() {
 
     fetchBoards();
   }, [projectId]);
+
+  const handleDragEnd = async (event: DragEndEvent, boardId: number) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const board = boards.find((b) => b.id === boardId);
+    if (!board || !board.columns) return;
+
+    const oldIndex = board.columns.findIndex((col) => col.id === active.id);
+    const newIndex = board.columns.findIndex((col) => col.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistically update UI
+    const reorderedColumns = arrayMove(board.columns, oldIndex, newIndex);
+    
+    setBoards((prev) =>
+      prev.map((b) =>
+        b.id === boardId ? { ...b, columns: reorderedColumns } : b
+      )
+    );
+
+    // Send update to backend
+    try {
+      await authRequest({
+        method: "put",
+        url: `/columns/${active.id}/reorder`,
+        data: {
+          new_position: newIndex + 1,
+        },
+      });
+
+      // Refetch to ensure consistency
+      const updatedColumns = await authRequest<Column[]>({
+        method: "get",
+        url: `/columns/${boardId}`,
+      });
+
+      const columnsWithTasks = await Promise.all(
+        updatedColumns.map(async (col) => {
+          const tasks = await authRequest<Task[]>({
+            method: "get",
+            url: `/tasks/${col.id}`,
+          });
+          return { ...col, tasks };
+        })
+      );
+
+      setBoards((prev) =>
+        prev.map((b) =>
+          b.id === boardId ? { ...b, columns: columnsWithTasks } : b
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder column. Refreshing...");
+      
+      // Revert on error
+      const originalColumns = await authRequest<Column[]>({
+        method: "get",
+        url: `/columns/${boardId}`,
+      });
+
+      const columnsWithTasks = await Promise.all(
+        originalColumns.map(async (col) => {
+          const tasks = await authRequest<Task[]>({
+            method: "get",
+            url: `/tasks/${col.id}`,
+          });
+          return { ...col, tasks };
+        })
+      );
+
+      setBoards((prev) =>
+        prev.map((b) =>
+          b.id === boardId ? { ...b, columns: columnsWithTasks } : b
+        )
+      );
+    }
+  };
 
   const handleAddColumn = (boardId: number) => {
     router.push(`/columns/create?boardId=${boardId}&projectId=${projectId}`);
@@ -130,7 +341,6 @@ export default function ProjectBoardsPage() {
         },
       });
 
-      // Update the boards state with the new task
       setBoards((prev) =>
         prev.map((board) =>
           board.id === selectedBoardId
@@ -164,7 +374,7 @@ export default function ProjectBoardsPage() {
   const handleRenameColumn = async (
     boardId: number,
     columnId: number,
-    currentName: string,
+    currentName: string
   ) => {
     const newName = prompt("Enter new column name:", currentName);
     if (!newName) return;
@@ -175,7 +385,7 @@ export default function ProjectBoardsPage() {
         url: `/columns/${columnId}`,
         data: {
           name: newName,
-          board_id: boardId
+          board_id: boardId,
         },
       });
 
@@ -198,39 +408,36 @@ export default function ProjectBoardsPage() {
   };
 
   const handleDeleteColumn = async (boardId: number, columnId: number) => {
-  if (!confirm("Are you sure you want to delete this column?")) return;
+    if (!confirm("Are you sure you want to delete this column?")) return;
 
-  try {
-    await authRequest({ method: "delete", url: `/columns/${columnId}` });
+    try {
+      await authRequest({ method: "delete", url: `/columns/${columnId}` });
 
-    // Refetch columns for this board to get updated positions
-    const updatedColumns = await authRequest<Column[]>({
-      method: "get",
-      url: `/columns/${boardId}`,
-    });
+      const updatedColumns = await authRequest<Column[]>({
+        method: "get",
+        url: `/columns/${boardId}`,
+      });
 
-    const columnsWithTasks = await Promise.all(
-      updatedColumns.map(async (col) => {
-        const tasks = await authRequest<Task[]>({
-          method: "get",
-          url: `/tasks/${col.id}`,
-        });
-        return { ...col, tasks };
-      })
-    );
+      const columnsWithTasks = await Promise.all(
+        updatedColumns.map(async (col) => {
+          const tasks = await authRequest<Task[]>({
+            method: "get",
+            url: `/tasks/${col.id}`,
+          });
+          return { ...col, tasks };
+        })
+      );
 
-    setBoards((prev) =>
-      prev.map((board) =>
-        board.id === boardId
-          ? { ...board, columns: columnsWithTasks }
-          : board
-      )
-    );
-  } catch (err) {
-    console.error(err);
-    alert("Failed to delete column");
-  }
-};
+      setBoards((prev) =>
+        prev.map((board) =>
+          board.id === boardId ? { ...board, columns: columnsWithTasks } : board
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete column");
+    }
+  };
 
   const handleDeleteBoard = async (boardId: number) => {
     if (!confirm("Are you sure you want to delete this board?")) return;
@@ -427,7 +634,7 @@ export default function ProjectBoardsPage() {
       )}
 
       {/* PAGE CONTENT */}
-      <div className="max-w-5xl mx-auto mt-16">
+      <div className="max-w-7xl mx-auto mt-16">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">All Boards</h1>
 
@@ -479,84 +686,37 @@ export default function ProjectBoardsPage() {
                     </div>
                   </div>
 
-                  {/* COLUMNS WITH TASKS */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                    {board.columns?.length ? (
-                        board.columns
-                          .sort((a, b) => a.position - b.position)
-                          .map((col) => (
-                            <div
-                              key={col.id}
-                              className="bg-gray-50 p-5 rounded-lg shadow-sm border"
-                            >
-                          {/* Column Header */}
-                              <div className="flex justify-between items-center mb-4">
-                                <div>
-                                  <h3 className="font-semibold text-lg">
-                                    {col.name}
-                                  </h3>
-                                  <p className="text-sm text-gray-500">
-                                    Position: {col.position} | Tasks: {col.tasks?.length || 0}
-                                  </p>
-                                </div>
-
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() =>
-                                      handleRenameColumn(
-                                        board.id,
-                                        col.id,
-                                        col.name
-                                      )
-                                    }
-                                    className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
-                                  >
-                                    Rename
-                                  </button>
-
-                                  <button
-                                    onClick={() =>
-                                      handleDeleteColumn(board.id, col.id)
-                                    }
-                                    className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
-
-                          {/* TASKS LIST */}
-                          <div className="space-y-3 mb-4">
-                            {col.tasks && col.tasks.length > 0 ? (
-                              col.tasks.map((task) => (
-                                <div
-                                  key={task.id}
-                                  onClick={() => handleViewTask(task)}
-                                  className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
-                                >
-                                  <h4 className="font-medium">{task.title}</h4>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-gray-400 text-sm">
-                                No tasks.
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Add Task */}
-                          <button
-                            onClick={() => handleOpenTaskModal(board.id, col.id)}
-                            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                          >
-                            + Add Task
-                          </button>
+                  {/* COLUMNS WITH DRAG AND DROP */}
+                  {board.columns?.length ? (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => handleDragEnd(event, board.id)}
+                    >
+                      <SortableContext
+                        items={board.columns.map((col) => col.id)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+                          {board.columns
+                            .sort((a, b) => a.position - b.position)
+                            .map((col) => (
+                              <SortableColumn
+                                key={col.id}
+                                column={col}
+                                boardId={board.id}
+                                onRename={handleRenameColumn}
+                                onDelete={handleDeleteColumn}
+                                onAddTask={handleOpenTaskModal}
+                                onViewTask={handleViewTask}
+                              />
+                            ))}
                         </div>
-                      ))
-                    ) : (
-                      <p>No columns found.</p>
-                    )}
-                  </div>
+                      </SortableContext>
+                    </DndContext>
+                  ) : (
+                    <p className="mb-6">No columns found.</p>
+                  )}
 
                   <button
                     onClick={() => handleAddColumn(board.id)}
