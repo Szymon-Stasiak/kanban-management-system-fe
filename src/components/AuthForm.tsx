@@ -12,6 +12,7 @@ export default function AuthForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
 
@@ -26,12 +27,14 @@ export default function AuthForm() {
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+        setSuccess(null);
         setLoading(true);
         try {
             if (mode === 'signup') {
                 const res = await createAccount({ email, username, password });
                 if (!res.ok) {
                     setError(res.message ?? 'An unknown error occurred.');
+                    setSuccess(null);
                     setLoading(false);
                     return;
                 }
@@ -39,11 +42,13 @@ export default function AuthForm() {
                 setPassword('');
                 setEmail('');
                 setMode('login');
-                setError('Account created successfully. Please log in.');
+                setError(null);
+                setSuccess('Account created successfully. Please log in.');
             } else {
                 const res = await loginFn({ username, password });
                 if (!res.ok) {
                     setError(res.message || 'Invalid username or password.');
+                    setSuccess(null);
                     setLoading(false);
                     return;
                 }
@@ -52,6 +57,7 @@ export default function AuthForm() {
         } catch (err) {
             console.error(err);
             setError('An unexpected error occurred.');
+            setSuccess(null);
         } finally {
             setLoading(false);
         }
@@ -130,6 +136,12 @@ export default function AuthForm() {
                 {error && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-base text-red-600">
                         {error}
+                    </motion.div>
+                )}
+
+                {success && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-base text-green-600">
+                        {success}
                     </motion.div>
                 )}
 
