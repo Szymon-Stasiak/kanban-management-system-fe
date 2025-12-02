@@ -172,6 +172,9 @@ export default function ProjectBoardsPage() {
   const [taskDescription, setTaskDescription] = useState("");
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
+  const [taskDueDate, setTaskDueDate] = useState(() =>
+    new Date().toISOString().slice(0, 16)
+  );
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -321,12 +324,18 @@ export default function ProjectBoardsPage() {
     setSelectedColumnId(columnId);
     setTaskTitle("");
     setTaskDescription("");
+    setTaskDueDate(new Date().toISOString().slice(0, 16));
     setIsTaskModalOpen(true);
   };
 
   const handleCreateTask = async () => {
     if (!taskTitle.trim() || !selectedColumnId) {
       alert("Please enter a task title");
+      return;
+    }
+
+    if (!taskDueDate) {
+      alert("Please select a due date");
       return;
     }
 
@@ -338,6 +347,7 @@ export default function ProjectBoardsPage() {
           title: taskTitle,
           description: taskDescription,
           column_id: selectedColumnId,
+          due_date: new Date(taskDueDate).toISOString(),
         },
       });
 
@@ -361,6 +371,7 @@ export default function ProjectBoardsPage() {
       setTaskDescription("");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
+      setTaskDueDate(new Date().toISOString().slice(0, 16));
     } catch (err) {
       console.error(err);
       alert("Failed to create task");
@@ -570,6 +581,14 @@ export default function ProjectBoardsPage() {
               placeholder="Enter task description (optional)"
             />
 
+            <label className="block text-sm font-medium mb-1">Due date</label>
+            <input
+              type="datetime-local"
+              value={taskDueDate}
+              onChange={(e) => setTaskDueDate(e.target.value)}
+              className="w-full p-2 mb-4 border rounded"
+            />
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
@@ -578,6 +597,7 @@ export default function ProjectBoardsPage() {
                   setTaskDescription("");
                   setSelectedColumnId(null);
                   setSelectedBoardId(null);
+                  setTaskDueDate(new Date().toISOString().slice(0, 16));
                 }}
                 className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
