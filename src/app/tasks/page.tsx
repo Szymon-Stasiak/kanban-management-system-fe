@@ -3,13 +3,18 @@ import React, { useEffect, useState } from 'react';
 import SharedLayout from '@/components/layouts/SharedLayout';
 import { CustomTable } from '@/components/CustomTable';
 import { authRequest } from '@/lib/auth';
+import { Description } from '@radix-ui/react-dialog';
 
 interface Task {
     id: string;
     name: string;
+    description: string;
     priority: string;
     completed: boolean;
+    column: number;
+    position: number;
     createdAt: string;
+
     due_date: string;
 }
 
@@ -17,6 +22,8 @@ export default function DashboardPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [sortColumn, setSortColumn] = useState<string | null>(null);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const formatDate = (date: Date | string) => {
         const d = typeof date === "string" ? new Date(date) : date;
@@ -50,6 +57,15 @@ export default function DashboardPage() {
         setSearchTaskName("");
     };
 
+    const handleSort = (column: string) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
 
     // Fetch all tasks on mount
     useEffect(() => {
@@ -59,8 +75,11 @@ export default function DashboardPage() {
                 const items = Array.isArray(data) ? data.map((t: any) => ({
                     id: t.public_task_id || t.id,
                     name: t.name || t.title,
+                    description: t.description,
                     priority: t.priority || 'N/A',
                     completed: !!t.completed || !!t.is_completed,
+                    position: t.position, 
+                    column: t.column_id,
                     createdAt: t.created_at ?? t.createdAt ?? t.created,
                     due_date: t.due_date || 'No set Due Date',
                 })) : [];
@@ -151,6 +170,45 @@ export default function DashboardPage() {
         return true;
     });
 
+    const sortedTasks = [...filteredTasks].sort((a, b) => {
+        if (!sortColumn) return 0;
+
+        let aVal: any;
+        let bVal: any;
+
+        switch (sortColumn) {
+            case 'name':
+            case 'description':
+                aVal = (a[sortColumn] || '').toLowerCase();
+                bVal = (b[sortColumn] || '').toLowerCase();
+                break;
+            case 'priority':
+                const priorityOrder = { high: 3, medium: 2, low: 1 };
+                aVal = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+                bVal = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+                break;
+            case 'completed':
+                aVal = a.completed ? 1 : 0;
+                bVal = b.completed ? 1 : 0;
+                break;
+            case 'column':
+            case 'position':
+                aVal = a[sortColumn] || 0;
+                bVal = b[sortColumn] || 0;
+                break;
+            case 'createdAt':
+            case 'due_date':
+                aVal = a[sortColumn] ? new Date(a[sortColumn]).getTime() : 0;
+                bVal = b[sortColumn] ? new Date(b[sortColumn]).getTime() : 0;
+                break;
+            default:
+                return 0;
+        }
+
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     return (
         <SharedLayout>
@@ -297,7 +355,7 @@ export default function DashboardPage() {
                     ) : (
                         <div className="max-h-[60vh] overflow-y-auto">
                             <CustomTable
-                                data={filteredTasks.map((t) => {
+                                data={sortedTasks.map((t) => {
                                     let formattedDate = "";
                                     if (t.createdAt) {
                                         const date = new Date(t.createdAt);
@@ -311,14 +369,33 @@ export default function DashboardPage() {
                                     }
                                     return {
                                         name: t.name,
+                                        description: t.description,
                                         priority: t.priority,
                                         completed: t.completed ? "Yes" : "No",
                                         createdAt: formattedDate,
                                         due_date: formatDate(t.due_date),
+                                        column: t.column,
+                                        position: t.position
                                     };
                                 })}
-                                columnHeaders={["Name", "Priority", "Completed", "Created at", "Due Date"]}
+                                columnHeaders={["Name", "Description", "Priority", "Completed", "Created at", "Due Date", "Column", "Position"]}
                                 path="/tasks"
+                                onHeaderClick={(header) => {
+                                    const columnMap: Record<string, string> = {
+                                        'Name': 'name',
+                                        'Description': 'description',
+                                        'Priority': 'priority',
+                                        'Completed': 'completed',
+                                        'Created at': 'createdAt',
+                                        'Due Date': 'due_date',
+                                        'Column': 'column',
+                                        'Position': 'position'
+                                    };
+                                    const column = columnMap[header];
+                                    if (column) handleSort(column);
+                                }}
+                                sortColumn={sortColumn}
+                                sortDirection={sortDirection}
                             />
                         </div>
                     )}
