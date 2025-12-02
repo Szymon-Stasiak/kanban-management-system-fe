@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import {
     DndContext,
     closestCenter,
@@ -185,6 +186,13 @@ export default function ProjectBoardsPage() {
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // Edit task state
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // DnD Kit sensors
   const sensors = useSensors(
@@ -218,6 +226,7 @@ export default function ProjectBoardsPage() {
                     method: "get",
                     url: `/tasks/${col.id}`,
                   });
+
                   return { ...col, tasks };
                 })
               );
@@ -391,6 +400,77 @@ export default function ProjectBoardsPage() {
   };
 
  const handleRenameColumn = async (
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm) {
+      // placeholder to satisfy possible linter; actual confirm handled via ConfirmModal
+    }
+
+    try {
+      setDeleting(true);
+      await authRequest({ method: "delete", url: `/tasks/${taskId}` });
+
+      // remove the task from local state
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          columns: board.columns?.map((col) => ({
+            ...col,
+            tasks: col.tasks?.filter((t) => t.id !== taskId),
+          })),
+        }))
+      );
+
+      setViewingTask(null);
+      setIsDeleteConfirmOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete task");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleSaveTask = async () => {
+    if (!viewingTask) return;
+    if (!editTaskTitle.trim()) {
+      alert("Please enter a task title");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+
+      const updated = await authRequest<Task>({
+        method: "put",
+        url: `/tasks/${viewingTask.id}`,
+        data: {
+          title: editTaskTitle,
+          description: editTaskDescription,
+        },
+      });
+
+      // update local state: find and replace task
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          columns: board.columns?.map((col) => ({
+            ...col,
+            tasks: col.tasks?.map((t) => (t.id === updated.id ? updated : t)),
+          })),
+        }))
+      );
+
+      setViewingTask(updated);
+      setIsEditingTask(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update task");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleRenameColumn = async (
     boardId: number,
     columnId: number,
     currentName: string
@@ -404,6 +484,7 @@ export default function ProjectBoardsPage() {
         url: `/columns/${columnId}`,
         data: {
           name: newName,
+          position: currentPosition,
           board_id: boardId,
         },
       });
@@ -652,43 +733,122 @@ export default function ProjectBoardsPage() {
         </div>
       )}
 
+
       {/* VIEW TASK MODAL */}
       {viewingTask && (
         <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
           <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
             <h2 className="text-xl font-bold mb-4">Task Details</h2>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Title
-              </label>
-              <p className="text-lg font-semibold">{viewingTask.title}</p>
-            </div>
+            {/* Viewing or editing mode */}
+            {!isEditingTask ? (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
+                    Title
+                  </label>
+                  <p className="text-lg font-semibold">{viewingTask.title}</p>
+                </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Description
-              </label>
-              {viewingTask.description ? (
-                <p className="text-gray-600 whitespace-pre-wrap">
-                  {viewingTask.description}
-                </p>
-              ) : (
-                <p className="text-gray-400 italic">No description provided</p>
-              )}
-            </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
+                    Description
+                  </label>
+                  {viewingTask.description ? (
+                    <p className="text-gray-600 whitespace-pre-wrap">
+                      {viewingTask.description}
+                    </p>
+                  ) : (
+                    <p className="text-gray-400 italic">No description provided</p>
+                  )}
+                </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setViewingTask(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Close
-              </button>
-            </div>
+                <div className="flex justify-end">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                      Delete task
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        // start editing
+                        setIsEditingTask(true);
+                        setEditTaskTitle(viewingTask.title);
+                        setEditTaskDescription(viewingTask.description ?? "");
+                      }}
+                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => setViewingTask(null)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Title *</label>
+                  <input
+                    type="text"
+                    value={editTaskTitle}
+                    onChange={(e) => setEditTaskTitle(e.target.value)}
+                    className="w-full p-2 mb-3 border rounded"
+                    placeholder="Enter task title"
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    value={editTaskDescription}
+                    onChange={(e) => setEditTaskDescription(e.target.value)}
+                    className="w-full p-2 mb-3 border rounded"
+                    placeholder="Enter task description"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setIsEditingTask(false)}
+                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                    disabled={savingEdit}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={handleSaveTask}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    disabled={savingEdit}
+                  >
+                    {savingEdit ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        show={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={() => viewingTask && handleDeleteTask(viewingTask.id)}
+        confirming={deleting}
+        title="Delete task"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
 
       {/* PAGE CONTENT */}
       <div className="max-w-7xl mx-auto mt-16">
