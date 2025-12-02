@@ -333,7 +333,7 @@ export default function ProjectBoardsPage() {
     setTaskDescription("");
     setTaskPosition(0);
     setIsTaskModalOpen(true);
-    setTaskPriority("");
+    setTaskPriority("medium");
     setTaskDueDate("");
   };
 
@@ -390,11 +390,10 @@ export default function ProjectBoardsPage() {
     setViewingTask(task);
   };
 
-  const handleRenameColumn = async (
+ const handleRenameColumn = async (
     boardId: number,
     columnId: number,
-    currentName: string,
-    currentPosition: number
+    currentName: string
   ) => {
     const newName = prompt("Enter new column name:", currentName);
     if (!newName) return;
@@ -405,7 +404,6 @@ export default function ProjectBoardsPage() {
         url: `/columns/${columnId}`,
         data: {
           name: newName,
-          position: currentPosition,
           board_id: boardId,
         },
       });
