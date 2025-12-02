@@ -6,20 +6,20 @@ import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragEndEvent,
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
 } from "@dnd-kit/core";
 import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    horizontalListSortingStrategy,
-    useSortable,
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -399,7 +399,6 @@ export default function ProjectBoardsPage() {
     setViewingTask(task);
   };
 
- const handleRenameColumn = async (
   const handleDeleteTask = async (taskId: number) => {
     if (!confirm) {
       // placeholder to satisfy possible linter; actual confirm handled via ConfirmModal
@@ -484,7 +483,7 @@ export default function ProjectBoardsPage() {
         url: `/columns/${columnId}`,
         data: {
           name: newName,
-          position: currentPosition,
+          // position: currentPosition,
           board_id: boardId,
         },
       });
@@ -724,7 +723,7 @@ export default function ProjectBoardsPage() {
 
               <button
                 onClick={handleCreateTask}
-                className="px-4 py-2 bg-blue-500 text-white rounded"
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Create
               </button>
