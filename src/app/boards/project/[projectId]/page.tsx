@@ -27,6 +27,7 @@ type Task = {
   title: string;
   description?: string | null;
   column_id: number;
+  due_date?: string | null;
 };
 
 type Column = {
@@ -133,6 +134,11 @@ function SortableColumn({
               className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
             >
               <h4 className="font-medium">{task.title}</h4>
+              {task.due_date ? (
+                <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleString()}</p>
+              ) : (
+                <p className="text-sm text-gray-400 italic">No due date</p>
+              )}
             </div>
           ))
         ) : (
