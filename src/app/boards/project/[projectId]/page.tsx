@@ -28,6 +28,7 @@ type Task = {
   description?: string | null;
   column_id: number;
   due_date?: string | null;
+  priority?: string | null;
 };
 
 type Column = {
@@ -139,6 +140,9 @@ function SortableColumn({
               ) : (
                 <p className="text-sm text-gray-400 italic">No due date</p>
               )}
+              {task.priority ? (
+                <p className="text-sm text-gray-500">Priority: {String(task.priority).charAt(0).toUpperCase() + String(task.priority).slice(1)}</p>
+              ) : null}
             </div>
           ))
         ) : (
@@ -184,6 +188,10 @@ export default function ProjectBoardsPage() {
 
   // View task modal
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskPriority, setEditTaskPriority] = useState("medium");
 
   // DnD Kit sensors
   const sensors = useSensors(
@@ -386,6 +394,80 @@ export default function ProjectBoardsPage() {
 
   const handleViewTask = (task: Task) => {
     setViewingTask(task);
+  };
+
+  const handleStartEditTask = () => {
+    if (!viewingTask) return;
+    setIsEditingTask(true);
+    setEditTaskTitle(viewingTask.title);
+    setEditTaskDescription(viewingTask.description ?? "");
+    setEditTaskPriority(viewingTask.priority ?? "medium");
+  };
+
+  const handleCancelEditTask = () => {
+    setIsEditingTask(false);
+    setEditTaskTitle("");
+    setEditTaskDescription("");
+    setEditTaskPriority("medium");
+  };
+
+  const handleSaveTask = async () => {
+    if (!viewingTask) return;
+
+    try {
+      const updated = await authRequest<Task>({
+        method: "put",
+        url: `/tasks/${viewingTask.id}`,
+        data: {
+          title: editTaskTitle,
+          description: editTaskDescription,
+          priority: editTaskPriority,
+        },
+      });
+
+      // Update local state
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          columns: board.columns?.map((col) => ({
+            ...col,
+            tasks: col.tasks?.map((t) => (t.id === updated.id ? updated : t)),
+          })),
+        }))
+      );
+
+      setViewingTask(updated);
+      setIsEditingTask(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update task");
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!viewingTask) return;
+    if (!confirm("Are you sure you want to delete this task?")) return;
+
+    try {
+      await authRequest({ method: "delete", url: `/tasks/${viewingTask.id}` });
+
+      // Remove from local state
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          columns: board.columns?.map((col) => ({
+            ...col,
+            tasks: col.tasks?.filter((t) => t.id !== viewingTask.id),
+          })),
+        }))
+      );
+
+      setViewingTask(null);
+      setIsEditingTask(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete task");
+    }
   };
 
   const handleRenameColumn = async (
@@ -626,35 +708,120 @@ export default function ProjectBoardsPage() {
         <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
           <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
             <h2 className="text-xl font-bold mb-4">Task Details</h2>
+            {isEditingTask ? (
+              <>
+                <label className="block text-sm font-medium mb-2 text-gray-700">Title</label>
+                <input
+                  type="text"
+                  value={editTaskTitle}
+                  onChange={(e) => setEditTaskTitle(e.target.value)}
+                  className="w-full p-2 mb-3 border rounded"
+                />
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Title
-              </label>
-              <p className="text-lg font-semibold">{viewingTask.title}</p>
-            </div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">Description</label>
+                <textarea
+                  value={editTaskDescription}
+                  onChange={(e) => setEditTaskDescription(e.target.value)}
+                  className="w-full p-2 mb-3 border rounded"
+                  rows={4}
+                />
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Description
-              </label>
-              {viewingTask.description ? (
-                <p className="text-gray-600 whitespace-pre-wrap">
-                  {viewingTask.description}
-                </p>
-              ) : (
-                <p className="text-gray-400 italic">No description provided</p>
-              )}
-            </div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">Priority</label>
+                <select
+                  value={editTaskPriority}
+                  onChange={(e) => setEditTaskPriority(e.target.value)}
+                  className="w-full p-2 mb-3 border rounded"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setViewingTask(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Close
-              </button>
-            </div>
+                <div className="flex justify-between items-center gap-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDeleteTask}
+                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCancelEditTask}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      onClick={handleSaveTask}
+                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Title</label>
+                  <p className="text-lg font-semibold">{viewingTask.title}</p>
+                </div>
+
+                <div className="mb-2">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Description</label>
+                  {viewingTask.description ? (
+                    <p className="text-gray-600 whitespace-pre-wrap">{viewingTask.description}</p>
+                  ) : (
+                    <p className="text-gray-400 italic">No description provided</p>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Due date</label>
+                  {viewingTask.due_date ? (
+                    <p className="text-gray-600">{new Date(viewingTask.due_date).toLocaleString()}</p>
+                  ) : (
+                    <p className="text-gray-400 italic">No due date</p>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Priority</label>
+                  {viewingTask.priority ? (
+                    <p className="text-gray-600">{String(viewingTask.priority).charAt(0).toUpperCase() + String(viewingTask.priority).slice(1)}</p>
+                  ) : (
+                    <p className="text-gray-400 italic">No priority set</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setViewingTask(null)}
+                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                  >
+                    Close
+                  </button>
+
+                  <button
+                    onClick={handleStartEditTask}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={handleDeleteTask}
+                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
