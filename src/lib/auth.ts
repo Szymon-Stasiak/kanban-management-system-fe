@@ -104,16 +104,24 @@ export async function authRequest<T>({
 
     const axiosConfig = { ...config, headers, responseType };
 
-    switch (method) {
-        case "get":
-            return (await api.get<T>(url, axiosConfig)).data;
-        case "post":
-            return (await api.post<T>(url, data, axiosConfig)).data;
-        case "put":
-            return (await api.put<T>(url, data, axiosConfig)).data;
-        case "delete":
-            return (await api.delete<T>(url, axiosConfig)).data;
-        default:
-            throw new Error(`Unsupported method: ${method}`);
+    try {
+        switch (method) {
+            case "get":
+                return (await api.get<T>(url, axiosConfig)).data;
+            case "post":
+                return (await api.post<T>(url, data, axiosConfig)).data;
+            case "put":
+                return (await api.put<T>(url, data, axiosConfig)).data;
+            case "delete":
+                return (await api.delete<T>(url, axiosConfig)).data;
+            default:
+                throw new Error(`Unsupported method: ${method}`);
+        }
+    } catch (error: any) {
+        const status = error?.response?.status;
+        const detail = error?.response?.data?.detail ?? error?.response?.data;
+        const msg = `authRequest ${method.toUpperCase()} ${url} failed${status ? ` (status ${status})` : ''}`;
+        console.error(msg, detail);
+        throw error;
     }
 }

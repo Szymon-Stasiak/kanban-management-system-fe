@@ -268,81 +268,68 @@ export default function ProjectBoardsPage() {
 
   const handleDragEnd = async (event: DragEndEvent, boardId: number) => {
     const { active, over } = event;
-
     if (!over || active.id === over.id) return;
 
     const board = boards.find((b) => b.id === boardId);
     if (!board || !board.columns) return;
 
-    const oldIndex = board.columns.findIndex((col) => col.id === active.id);
-    const newIndex = board.columns.findIndex((col) => col.id === over.id);
-
+    // Use the same sorted order as rendered to compute indices
+    const sorted = [...board.columns].sort((a, b) => a.position - b.position);
+    const oldIndex = sorted.findIndex((col) => col.id === active.id);
+    const newIndex = sorted.findIndex((col) => col.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
+    const reorderedSorted = arrayMove(sorted, oldIndex, newIndex);
+
+    // Recompute positions based on new visual order
+    const updatedWithPositions = reorderedSorted.map((col, idx) => ({
+      ...col,
+      position: idx + 1,
+    }));
+
+    // Merge back into original board.columns by id (in case backend expects position field)
+    const updatedColumnsById = new Map(updatedWithPositions.map((c) => [c.id, c]));
+    const mergedColumns = board.columns.map((c) => updatedColumnsById.get(c.id) ?? c);
+
     // Optimistically update UI
-    const reorderedColumns = arrayMove(board.columns, oldIndex, newIndex);
-    
     setBoards((prev) =>
-      prev.map((b) =>
-        b.id === boardId ? { ...b, columns: reorderedColumns } : b
-      )
+      prev.map((b) => (b.id === boardId ? { ...b, columns: mergedColumns } : b))
     );
 
-    // Send update to backend
     try {
+      // Persist new position for the moved column
       await authRequest({
         method: "put",
         url: `/columns/${active.id}/reorder`,
-        data: {
-          new_position: newIndex + 1,
-        },
+        data: { new_position: newIndex + 1 },
       });
 
-      // Refetch to ensure consistency
-      const updatedColumns = await authRequest<Column[]>({
-        method: "get",
-        url: `/columns/${boardId}`,
-      });
-
+      // Optionally, refresh columns to ensure consistency
+      const refreshed = await authRequest<Column[]>({ method: "get", url: `/columns/${boardId}` });
       const columnsWithTasks = await Promise.all(
-        updatedColumns.map(async (col) => {
-          const tasks = await authRequest<Task[]>({
-            method: "get",
-            url: `/tasks/${col.id}`,
-          });
+        refreshed.map(async (col) => {
+          const tasks = await authRequest<Task[]>({ method: "get", url: `/tasks/${col.id}` });
           return { ...col, tasks };
         })
       );
 
       setBoards((prev) =>
-        prev.map((b) =>
-          b.id === boardId ? { ...b, columns: columnsWithTasks } : b
-        )
+        prev.map((b) => (b.id === boardId ? { ...b, columns: columnsWithTasks } : b))
       );
     } catch (err) {
-      console.error(err);
-      alert("Failed to reorder column. Refreshing...");
-      
-      // Revert on error
-      const originalColumns = await authRequest<Column[]>({
-        method: "get",
-        url: `/columns/${boardId}`,
-      });
+      console.warn("Reorder request failed; keeping optimistic order.", err);
 
+      // Optionally refresh data silently to resync if backend updated
+      const original = await authRequest<Column[]>({ method: "get", url: `/columns/${boardId}` });
       const columnsWithTasks = await Promise.all(
-        originalColumns.map(async (col) => {
-          const tasks = await authRequest<Task[]>({
-            method: "get",
-            url: `/tasks/${col.id}`,
-          });
+        original.map(async (col) => {
+          const tasks = await authRequest<Task[]>({ method: "get", url: `/tasks/${col.id}` });
           return { ...col, tasks };
         })
       );
 
       setBoards((prev) =>
-        prev.map((b) =>
-          b.id === boardId ? { ...b, columns: columnsWithTasks } : b
-        )
+        prev.map((b) => (b.id === boardId ? { ...b, columns: columnsWithTasks } : b))
       );
     }
   };
@@ -950,7 +937,8 @@ export default function ProjectBoardsPage() {
                       onDragEnd={(event) => handleDragEnd(event, board.id)}
                     >
                       <SortableContext
-                        items={board.columns.map((col) => col.id)}
+                        // Ensure items reflect the same order used for rendering
+                        items={[...board.columns].sort((a, b) => a.position - b.position).map((col) => col.id)}
                         strategy={horizontalListSortingStrategy}
                       >
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
