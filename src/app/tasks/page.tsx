@@ -355,7 +355,7 @@ export default function DashboardPage() {
                     ) : (
                         <div className="max-h-[60vh] overflow-y-auto">
                             <CustomTable
-                                data={sortedTasks.map((t) => {
+                                data={filteredTasks.map((t) => {
                                     let formattedDate = "";
                                     if (t.createdAt) {
                                         const date = new Date(t.createdAt);

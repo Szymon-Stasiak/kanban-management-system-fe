@@ -118,18 +118,6 @@ export default function ProfilePage() {
         }
     };
 
-    const handleDeleteAvatar = async () => {
-        try {
-            await authRequest({ method: 'delete', url: '/profile-picture/delete' });
-            setUser(prev => prev ? { ...prev, avatar_url: null } : null);
-            setForm(prev => prev ? { ...prev, avatar_url: null } : {});
-            setAvatarFile(null);
-            setAvatarDeleted(true);
-        } catch (err) {
-            console.error('Failed to delete avatar:', err);
-        }
-    };
-
     const handleAvatarSelect = async (file: File | null) => {
         if (!file) return;
         setAvatarFile(file);
@@ -149,6 +137,25 @@ export default function ProfilePage() {
         setIsEditing(false);
     };
 
+    const handleDeleteAvatar = async () => {
+        setAvatarFile(null);
+        setAvatarDeleted(true);
+        try {
+            try {
+                await authRequest({ method: 'delete', url: '/users/avatar' });
+            } catch {
+                const fd = new FormData();
+                fd.append('delete_avatar', 'true');
+                await authRequest<User>({ method: 'put', url: '/users/edit', data: fd });
+            }
+            const data = await authRequest<User>({ method: 'get', url: '/users/me' });
+            setUser(data);
+            setForm(data);
+        } catch (err) {
+            console.error('Failed to delete avatar:', err);
+        }
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -156,15 +163,14 @@ export default function ProfilePage() {
             if (form.name) formData.append('name', form.name);
             if (form.surname) formData.append('surname', form.surname);
             if (form.bio) formData.append('bio', form.bio);
+            if (avatarFile) formData.append('avatar', avatarFile);
+            else if (avatarDeleted) formData.append('delete_avatar', 'true');
 
-            const data = await authRequest<User>({
-                method: 'put',
-                url: '/users/edit',
-                data: formData,
-            });
-
+            const data = await authRequest<User>({ method: 'put', url: '/users/edit', data: formData });
             setUser(data);
             setForm(data);
+            setAvatarFile(null);
+            setAvatarDeleted(false);
             setIsEditing(false);
         } catch (err) {
             console.error(err);

@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/dialog"
 import {
     Select,
+    SelectContent,
     SelectGroup,
     SelectItem,
-    SelectContent,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
@@ -59,6 +59,22 @@ function DashboardClient() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+
+    // Set default URL parameters on mount
+    useEffect(() => {
+        // Ensure we set default params in a single update to avoid race conditions
+        const needsArchived = !searchParams.has('archived');
+        const needsSort = !searchParams.has('sort');
+
+        if (needsArchived || needsSort) {
+            const params = new URLSearchParams(searchParams.toString());
+            if (!params.has('archived')) params.set('archived', 'false');
+            if (!params.has('sort')) params.set('sort', 'date');
+            router.replace(`${pathname}?${params.toString()}`);
+        }
+
+    }, [searchParams, pathname, router]);
 
     // Fetch all projects on mount
     useEffect(() => {
@@ -132,6 +148,7 @@ function DashboardClient() {
             [name]: value,
         }));
     };
+
 
     // Filter and sort projects based on URL params
     const filteredProjects = useMemo(() => {
@@ -267,6 +284,7 @@ function DashboardClient() {
                                         params.set('sort', 'date');
                                     }
                                 }
+                                if (!params.has('archived')) params.set('archived', 'false');
                                 router.replace(`${pathname}?${params.toString()}`);
                             }} />
                         </div>
@@ -277,6 +295,8 @@ function DashboardClient() {
                                 <Select value={sort} onValueChange={(value) => {
                                     const params = new URLSearchParams(searchParams.toString());
                                     params.set('sort', value);
+                                    // keep archived exactly as selected (so it defaults to false if not set)
+                                    if (!params.has('archived')) params.set('archived', 'false');
                                     router.replace(`${pathname}?${params.toString()}`);
                                 }}>
                                 <SelectTrigger className="w-[180px] bg-white">
@@ -297,6 +317,7 @@ function DashboardClient() {
                                     onCheckedChange={(checked) => {
                                         const params = new URLSearchParams(searchParams.toString());
                                         params.set('archived', checked ? 'true' : 'false');
+                                        if (!params.has('sort')) params.set('sort', 'date');
                                         router.replace(`${pathname}?${params.toString()}`);
                                     }}
                                 />
