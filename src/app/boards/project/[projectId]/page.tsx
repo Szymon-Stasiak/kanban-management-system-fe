@@ -29,6 +29,7 @@ type Task = {
   column_id: number;
   due_date?: string | null;
   priority?: string | null;
+  completed?: boolean;
 };
 
 type Column = {
@@ -44,6 +45,18 @@ type Board = {
   color?: string;
   description?: string | null;
   columns?: Column[];
+};
+
+const renderPriorityBadge = (p?: string | null) => {
+  const label = p ? String(p).charAt(0).toUpperCase() + String(p).slice(1) : "No priority";
+  const base = "inline-block px-2 py-0.5 rounded text-xs font-semibold";
+  if (!p) return <span className={`${base} bg-gray-100 text-gray-700`}>{label}</span>;
+
+  if (p === "low") return <span className={`${base} bg-green-100 text-green-800`}>{label}</span>;
+  if (p === "medium") return <span className={`${base} bg-yellow-100 text-yellow-800`}>{label}</span>;
+  if (p === "high") return <span className={`${base} bg-red-100 text-red-800`}>{label}</span>;
+
+  return <span className={`${base} bg-gray-100 text-gray-700`}>{label}</span>;
 };
 
 // Sortable Column Component
@@ -134,15 +147,17 @@ function SortableColumn({
               onClick={() => onViewTask(task)}
               className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
             >
-              <h4 className="font-medium">{task.title}</h4>
-              {task.due_date ? (
-                <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleString()}</p>
-              ) : (
-                <p className="text-sm text-gray-400 italic">No due date</p>
-              )}
-              {task.priority ? (
-                <p className="text-sm text-gray-500">Priority: {String(task.priority).charAt(0).toUpperCase() + String(task.priority).slice(1)}</p>
-              ) : null}
+              <h4 className={`${task.completed ? 'font-medium line-through text-gray-400' : 'font-medium'}`}>{task.title}</h4>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  {task.due_date ? (
+                    <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleString()}</p>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No due date</p>
+                  )}
+                </div>
+                <div>{renderPriorityBadge(task.priority)}</div>
+              </div>
             </div>
           ))
         ) : (
@@ -192,6 +207,9 @@ export default function ProjectBoardsPage() {
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
+  const [editTaskCompleted, setEditTaskCompleted] = useState(false);
+
+  
 
   // DnD Kit sensors
   const sensors = useSensors(
@@ -402,6 +420,7 @@ export default function ProjectBoardsPage() {
     setEditTaskTitle(viewingTask.title);
     setEditTaskDescription(viewingTask.description ?? "");
     setEditTaskPriority(viewingTask.priority ?? "medium");
+    setEditTaskCompleted(!!viewingTask.completed);
   };
 
   const handleCancelEditTask = () => {
@@ -409,6 +428,7 @@ export default function ProjectBoardsPage() {
     setEditTaskTitle("");
     setEditTaskDescription("");
     setEditTaskPriority("medium");
+    setEditTaskCompleted(false);
   };
 
   const handleSaveTask = async () => {
@@ -422,6 +442,7 @@ export default function ProjectBoardsPage() {
           title: editTaskTitle,
           description: editTaskDescription,
           priority: editTaskPriority,
+          completed: editTaskCompleted,
         },
       });
 
@@ -441,6 +462,36 @@ export default function ProjectBoardsPage() {
     } catch (err) {
       console.error(err);
       alert("Failed to update task");
+    }
+  };
+
+  const handleToggleComplete = async () => {
+    if (!viewingTask) return;
+
+    try {
+      const updated = await authRequest<Task>({
+        method: "put",
+        url: `/tasks/${viewingTask.id}`,
+        data: {
+          completed: !viewingTask.completed,
+        },
+      });
+
+      // Update local boards state
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          columns: board.columns?.map((col) => ({
+            ...col,
+            tasks: col.tasks?.map((t) => (t.id === updated.id ? updated : t)),
+          })),
+        }))
+      );
+
+      setViewingTask(updated);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update completed status");
     }
   };
 
@@ -736,6 +787,15 @@ export default function ProjectBoardsPage() {
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
+                <label className="inline-flex items-center gap-2 text-sm mb-4">
+                  <input
+                    type="checkbox"
+                    checked={editTaskCompleted}
+                    onChange={(e) => setEditTaskCompleted(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Completed</span>
+                </label>
 
                 <div className="flex justify-between items-center gap-2">
                   <div className="flex gap-2">
@@ -791,34 +851,37 @@ export default function ProjectBoardsPage() {
 
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-2 text-gray-700">Priority</label>
-                  {viewingTask.priority ? (
-                    <p className="text-gray-600">{String(viewingTask.priority).charAt(0).toUpperCase() + String(viewingTask.priority).slice(1)}</p>
-                  ) : (
-                    <p className="text-gray-400 italic">No priority set</p>
-                  )}
+                  <div>{renderPriorityBadge(viewingTask.priority)}</div>
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setViewingTask(null)}
-                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                  >
-                    Close
-                  </button>
+                    <button
+                      onClick={() => setViewingTask(null)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                    >
+                      Close
+                    </button>
 
-                  <button
-                    onClick={handleStartEditTask}
-                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                  >
-                    Edit
-                  </button>
+                    <button
+                      onClick={handleToggleComplete}
+                      className={`px-4 py-2 ${viewingTask.completed ? 'bg-green-500 hover:bg-green-600' : 'bg-indigo-500 hover:bg-indigo-600'} text-white rounded`}
+                    >
+                      {viewingTask.completed ? 'Mark Incomplete' : 'Mark Completed'}
+                    </button>
 
-                  <button
-                    onClick={handleDeleteTask}
-                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
+                    <button
+                      onClick={handleStartEditTask}
+                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={handleDeleteTask}
+                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                      Delete
+                    </button>
                 </div>
               </>
             )}

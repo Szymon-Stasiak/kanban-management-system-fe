@@ -13,15 +13,17 @@ export default function Navbar() {
     const [showLogOutModal, setShowLogOutModal] = useState(false);
     const [loggingOut, setLoggingOut] = useState(false);
 
-    const getInitialExpanded = () => {
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('navbarExpanded');
-            return stored !== null ? stored === 'true' : false;
-        }
-        return false;
-    };
+    const [isExpanded, setIsExpanded] = useState(false);
 
-    const [isExpanded, setIsExpanded] = useState(getInitialExpanded);
+    // Sync expansion state from localStorage after mount to avoid SSR/client hydration mismatch
+    React.useEffect(() => {
+        try {
+            const stored = localStorage.getItem('navbarExpanded');
+            if (stored !== null) setIsExpanded(stored === 'true');
+        } catch (e) {
+            // ignore
+        }
+    }, []);
 
     const handleLogOut= async () => {
         setLoggingOut(true);
