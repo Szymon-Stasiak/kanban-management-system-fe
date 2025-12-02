@@ -10,6 +10,7 @@ type TaskPriority = "low" | "medium" | "high";
 type Task = {
   id: number;
   title: string;
+  position: number;
   description?: string | null;
   priority: TaskPriority;
   column_id: number;
@@ -51,6 +52,7 @@ export default function ProjectBoardsPage() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
+  const [taskPosition, setTaskPosition] = useState<number>(0);
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
   const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
@@ -77,7 +79,6 @@ export default function ProjectBoardsPage() {
                 url: `/columns/${board.id}`,
               });
 
-              // fetch tasks for every column
               const columnsWithTasks = await Promise.all(
                 columns.map(async (col) => {
                   const tasks = await authRequest<Task[]>({
@@ -117,6 +118,7 @@ export default function ProjectBoardsPage() {
     setSelectedColumnId(columnId);
     setTaskTitle("");
     setTaskDescription("");
+    setTaskPosition(0);
     setIsTaskModalOpen(true);
     setTaskPriority("");
     setTaskDueDate("");
@@ -138,10 +140,10 @@ export default function ProjectBoardsPage() {
           column_id: selectedColumnId,
           priority: taskPriority,
           due_date: taskDueDate ? new Date(taskDueDate).toISOString(): null,
+          position: taskPosition,
         },
       });
 
-      // Update the boards state with the new task
       setBoards((prev) =>
         prev.map((board) =>
           board.id === selectedBoardId
@@ -160,6 +162,7 @@ export default function ProjectBoardsPage() {
       setIsTaskModalOpen(false);
       setTaskTitle("");
       setTaskDescription("");
+      setTaskPosition(0);
       setTaskPriority("medium");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
@@ -304,54 +307,6 @@ export default function ProjectBoardsPage() {
 
   return (
     <SharedLayout>
-      {/* EDIT BOARD MODAL */}
-      {editingBoard && (
-        <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
-          <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
-            <h2 className="text-xl font-bold mb-4">Edit Board</h2>
-
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="w-full p-2 mb-3 border rounded"
-            />
-
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <textarea
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              className="w-full p-2 mb-3 border rounded"
-            />
-
-            <label className="block text-sm font-medium mb-1">Color</label>
-            <input
-              type="color"
-              value={editColor}
-              onChange={(e) => setEditColor(e.target.value)}
-              className="w-16 h-10 mb-4 cursor-pointer"
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setEditingBoard(null)}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleSaveBoard}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* CREATE TASK MODAL */}
       {isTaskModalOpen && (
         <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
@@ -367,13 +322,25 @@ export default function ProjectBoardsPage() {
                 placeholder="Enter task title"
             />
 
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-1">
+              Description
+            </label>
             <textarea
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                className="w-full p-2 mb-4 border rounded"
-                rows={4}
-                placeholder="Enter task description (optional)"
+              value={taskDescription}
+              onChange={(e) => setTaskDescription(e.target.value)}
+              className="w-full p-2 mb-3 border rounded"
+              placeholder="Enter task description"
+            />
+
+            <label className="block text-sm font-medium mb-1">
+              Position
+            </label>
+            <input
+              type="number"
+              value={taskPosition}
+              onChange={(e) => setTaskPosition(Number(e.target.value))}
+              className="w-full p-2 mb-4 border rounded"
+              placeholder="0"
             />
 
             <label className="block text-sm font-medium mb-1">Task priority</label>
@@ -409,6 +376,7 @@ export default function ProjectBoardsPage() {
                     setSelectedColumnId(null);
                     setSelectedBoardId(null);
                     setTaskDueDate("");
+                    setIsTaskModalOpen(false)
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
@@ -416,8 +384,8 @@ export default function ProjectBoardsPage() {
               </button>
 
               <button
-                  onClick={handleCreateTask}
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={handleCreateTask}
+                className="px-4 py-2 bg-blue-500 text-white rounded"
               >
                 Create
               </button>
@@ -425,6 +393,7 @@ export default function ProjectBoardsPage() {
           </div>
         </div>
       )}
+
 
       {/* VIEW TASK MODAL */}
       {viewingTask && (
@@ -546,64 +515,73 @@ export default function ProjectBoardsPage() {
                           className="bg-gray-50 p-5 rounded-lg shadow-sm border"
                         >
                           {/* Column Header */}
-                              <div className="flex justify-between items-center mb-4">
-                                <div>
-                                  <h3 className="font-semibold text-lg">
-                                    {col.name}
-                                  </h3>
-                                  <p className="text-sm text-gray-500">
-                                    Position: {col.position} | Tasks: {col.tasks?.length || 0}
-                                  </p>
-                                </div>
+                          <div className="flex justify-between items-center mb-4">
+                            <div>
+                              <h3 className="font-semibold text-lg">
+                                {col.name}
+                              </h3>
+                              <p className="text-sm text-gray-500">
+                                Position: {col.position} | Tasks:{" "}
+                                {col.tasks?.length || 0}
+                              </p>
+                            </div>
 
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() =>
-                                      handleRenameColumn(
-                                        board.id,
-                                        col.id,
-                                        col.name,
-                                        col.position
-                                      )
-                                    }
-                                    className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
-                                  >
-                                    Rename
-                                  </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  handleRenameColumn(
+                                    board.id,
+                                    col.id,
+                                    col.name,
+                                    col.position
+                                  )
+                                }
+                                className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
+                              >
+                                Rename
+                              </button>
 
-                                  <button
-                                    onClick={() =>
-                                      handleDeleteColumn(board.id, col.id)
-                                    }
-                                    className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
+                              <button
+                                onClick={() =>
+                                  handleDeleteColumn(board.id, col.id)
+                                }
+                                className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
 
                           {/* TASKS LIST */}
                           <div className="space-y-3 mb-4">
                             {col.tasks && col.tasks.length > 0 ? (
-                              col.tasks.map((task) => (
-                                <div
-                                  key={task.id}
-                                  onClick={() => handleViewTask(task)}
-                                  className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
-                                >
-                                  <h4 className="font-medium">{task.title}</h4>
-                                </div>
-                              ))
+                              col.tasks
+                                .sort((a, b) => a.position - b.position)
+                                .map((task) => (
+                                  <div
+                                    key={task.id}
+                                    onClick={() => handleViewTask(task)}
+                                    className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
+                                  >
+                                    <h4 className="font-medium">
+                                      {task.title}
+                                    </h4>
+
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Position: {task.position}
+                                    </p>
+                                  </div>
+                                ))
                             ) : (
-                              <p className="text-gray-400 text-sm">
-                                No tasks.
-                              </p>
+                              <p className="text-gray-400 text-sm">No tasks.</p>
                             )}
                           </div>
 
                           {/* Add Task */}
                           <button
-                            onClick={() => handleOpenTaskModal(board.id, col.id)}
+                            onClick={() =>
+                              handleOpenTaskModal(board.id, col.id)
+                            }
                             className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                           >
                             + Add Task
