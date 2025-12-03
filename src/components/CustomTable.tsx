@@ -14,10 +14,11 @@ interface CustomTableProps {
   caption?: string;
   data: Record<string, any>[];
   columnHeaders: string[];
-  path: string;
+  path?: string;
   rowClassName?: string;
   cellClassName?: (key: string, value: any) => string;
   onHeaderClick?: (header: string) => void;
+  onRowClick?: (row: Record<string, any>) => void;
   sortColumn?: string | null;
   sortDirection?: 'asc' | 'desc';
 }
@@ -30,6 +31,7 @@ export function CustomTable({
                               rowClassName = "",
                               cellClassName,
                               onHeaderClick,
+                              onRowClick,
                               sortColumn,
                               sortDirection,
                             }: CustomTableProps) {
@@ -39,8 +41,12 @@ export function CustomTable({
   // Only show columns up to the number of headers provided
   const effectiveColumns = columns.slice(0, columnHeaders.length);
 
-  const handleRowClick = (id: string | number) => {
-    router.push(`${path}/${id}`);
+  const handleRowClick = (row: Record<string, any>) => {
+    if (onRowClick) {
+      onRowClick(row);
+    } else if (path) {
+      router.push(`${path}/${row.id}`);
+    }
   };
 
   return (
@@ -83,8 +89,8 @@ export function CustomTable({
           {data.map((row, rowIndex) => (
               <TableRow
                   key={rowIndex}
-                  className={`${rowClassName} cursor-pointer`}
-                  onClick={() => handleRowClick(row.id)}
+                  className={`${rowClassName} ${path || onRowClick ? 'cursor-pointer' : ''}`}
+                  onClick={() => handleRowClick(row)}
               >
                 {effectiveColumns.map((column, colIndex) => (
                     <TableCell

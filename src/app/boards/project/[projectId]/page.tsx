@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
+import { TaskModal } from "@/components/modals/TaskModal";
 import {
   DndContext,
   closestCenter,
@@ -742,139 +743,25 @@ export default function ProjectBoardsPage() {
       )}
 
       {/* VIEW TASK MODAL */}
-      {viewingTask && (
-        <div className="fixed inset-0 flex justify-center items-center bg-black/30 z-50">
-          <div className="bg-white p-6 rounded-xl w-96 shadow-xl">
-            <h2 className="text-xl font-bold mb-4">Task Details</h2>
-            {isEditingTask ? (
-              <>
-                <label className="block text-sm font-medium mb-2 text-gray-700">Title</label>
-                <input
-                  type="text"
-                  value={editTaskTitle}
-                  onChange={(e) => setEditTaskTitle(e.target.value)}
-                  className="w-full p-2 mb-3 border rounded"
-                />
-
-                <label className="block text-sm font-medium mb-2 text-gray-700">Description</label>
-                <textarea
-                  value={editTaskDescription}
-                  onChange={(e) => setEditTaskDescription(e.target.value)}
-                  className="w-full p-2 mb-3 border rounded"
-                  rows={4}
-                />
-
-                <label className="block text-sm font-medium mb-2 text-gray-700">Priority</label>
-                <select
-                  value={editTaskPriority}
-                  onChange={(e) => setEditTaskPriority(e.target.value)}
-                  className="w-full p-2 mb-3 border rounded"
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-                <label className="inline-flex items-center gap-2 text-sm mb-4">
-                  <input
-                    type="checkbox"
-                    checked={editTaskCompleted}
-                    onChange={(e) => setEditTaskCompleted(e.target.checked)}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Completed</span>
-                </label>
-
-                <div className="flex justify-between items-center gap-2">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleDeleteTask}
-                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCancelEditTask}
-                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      onClick={handleSaveTask}
-                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2 text-gray-700">Title</label>
-                  <p className="text-lg font-semibold">{viewingTask.title}</p>
-                </div>
-
-                <div className="mb-2">
-                  <label className="block text-sm font-medium mb-2 text-gray-700">Description</label>
-                  {viewingTask.description ? (
-                    <p className="text-gray-600 whitespace-pre-wrap">{viewingTask.description}</p>
-                  ) : (
-                    <p className="text-gray-400 italic">No description provided</p>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2 text-gray-700">Due date</label>
-                  {viewingTask.due_date ? (
-                    <p className="text-gray-600">{new Date(viewingTask.due_date).toLocaleString()}</p>
-                  ) : (
-                    <p className="text-gray-400 italic">No due date</p>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2 text-gray-700">Priority</label>
-                  <div>{renderPriorityBadge(viewingTask.priority)}</div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setViewingTask(null)}
-                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                    >
-                      Close
-                    </button>
-
-                    <button
-                      onClick={handleToggleComplete}
-                      className={`px-4 py-2 ${viewingTask.completed ? 'bg-green-500 hover:bg-green-600' : 'bg-indigo-500 hover:bg-indigo-600'} text-white rounded`}
-                    >
-                      {viewingTask.completed ? 'Mark Incomplete' : 'Mark Completed'}
-                    </button>
-
-                    <button
-                      onClick={handleStartEditTask}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      onClick={handleDeleteTask}
-                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <TaskModal
+        task={viewingTask}
+        isOpen={!!viewingTask}
+        isEditing={isEditingTask}
+        editTaskTitle={editTaskTitle}
+        editTaskDescription={editTaskDescription}
+        editTaskPriority={editTaskPriority}
+        editTaskCompleted={editTaskCompleted}
+        onClose={() => setViewingTask(null)}
+        onStartEdit={handleStartEditTask}
+        onCancelEdit={handleCancelEditTask}
+        onSave={handleSaveTask}
+        onDelete={handleDeleteTask}
+        onToggleComplete={handleToggleComplete}
+        onTitleChange={setEditTaskTitle}
+        onDescriptionChange={setEditTaskDescription}
+        onPriorityChange={setEditTaskPriority}
+        onCompletedChange={setEditTaskCompleted}
+      />
 
       {/* PAGE CONTENT */}
       <div className="max-w-7xl mx-auto mt-16">

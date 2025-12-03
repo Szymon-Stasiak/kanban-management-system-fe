@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import SharedLayout from '@/components/layouts/SharedLayout';
 import { CustomTable } from '@/components/CustomTable';
+import { TaskModal } from '@/components/modals/TaskModal';
 import { authRequest } from '@/lib/auth';
 import { Description } from '@radix-ui/react-dialog';
 
@@ -24,6 +25,14 @@ export default function DashboardPage() {
     const [error, setError] = useState<string | null>(null);
     const [sortColumn, setSortColumn] = useState<string | null>(null);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    // Task modal state
+    const [viewingTask, setViewingTask] = useState<Task | null>(null);
+    const [isEditingTask, setIsEditingTask] = useState(false);
+    const [editTaskTitle, setEditTaskTitle] = useState("");
+    const [editTaskDescription, setEditTaskDescription] = useState("");
+    const [editTaskPriority, setEditTaskPriority] = useState("medium");
+    const [editTaskCompleted, setEditTaskCompleted] = useState(false);
 
     const formatDate = (date: Date | string) => {
         const d = typeof date === "string" ? new Date(date) : date;
@@ -210,6 +219,114 @@ export default function DashboardPage() {
         return 0;
     });
 
+    const handleRowClick = (row: Record<string, any>) => {
+        const task = tasks.find(t => t.id === row.id);
+        if (task) {
+            setViewingTask(task);
+            setIsEditingTask(false);
+        }
+    };
+
+    const handleStartEditTask = () => {
+        if (!viewingTask) return;
+        setIsEditingTask(true);
+        setEditTaskTitle(viewingTask.name);
+        setEditTaskDescription(viewingTask.description ?? "");
+        setEditTaskPriority(viewingTask.priority ?? "medium");
+        setEditTaskCompleted(!!viewingTask.completed);
+    };
+
+    const handleCancelEditTask = () => {
+        setIsEditingTask(false);
+        setEditTaskTitle("");
+        setEditTaskDescription("");
+        setEditTaskPriority("medium");
+        setEditTaskCompleted(false);
+    };
+
+    const handleSaveTask = async () => {
+        if (!viewingTask) return;
+
+        try {
+            const updated = await authRequest<any>({
+                method: "put",
+                url: `/tasks/${viewingTask.id}`,
+                data: {
+                    title: editTaskTitle,
+                    description: editTaskDescription,
+                    priority: editTaskPriority,
+                    completed: editTaskCompleted,
+                },
+            });
+
+            const updatedTask: Task = {
+                id: updated.public_task_id || updated.id,
+                name: updated.name || updated.title,
+                description: updated.description,
+                priority: updated.priority || 'N/A',
+                completed: !!updated.completed || !!updated.is_completed,
+                position: updated.position,
+                column: updated.column_id,
+                createdAt: updated.created_at ?? updated.createdAt ?? updated.created,
+                due_date: updated.due_date || 'No set Due Date',
+            };
+
+            setTasks(prevTasks => prevTasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+            setViewingTask(updatedTask);
+            setIsEditingTask(false);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to update task");
+        }
+    };
+
+    const handleToggleComplete = async () => {
+        if (!viewingTask) return;
+
+        try {
+            const updated = await authRequest<any>({
+                method: "put",
+                url: `/tasks/${viewingTask.id}`,
+                data: {
+                    completed: !viewingTask.completed,
+                },
+            });
+
+            const updatedTask: Task = {
+                id: updated.public_task_id || updated.id,
+                name: updated.name || updated.title,
+                description: updated.description,
+                priority: updated.priority || 'N/A',
+                completed: !!updated.completed || !!updated.is_completed,
+                position: updated.position,
+                column: updated.column_id,
+                createdAt: updated.created_at ?? updated.createdAt ?? updated.created,
+                due_date: updated.due_date || 'No set Due Date',
+            };
+
+            setTasks(prevTasks => prevTasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+            setViewingTask(updatedTask);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to update completed status");
+        }
+    };
+
+    const handleDeleteTask = async () => {
+        if (!viewingTask) return;
+        if (!confirm("Are you sure you want to delete this task?")) return;
+
+        try {
+            await authRequest({ method: "delete", url: `/tasks/${viewingTask.id}` });
+            setTasks(prevTasks => prevTasks.filter(t => t.id !== viewingTask.id));
+            setViewingTask(null);
+            setIsEditingTask(false);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to delete task");
+        }
+    };
+
     return (
         <SharedLayout>
             <div className="max-w-3xl mx-auto mt-16">
@@ -368,6 +485,7 @@ export default function DashboardPage() {
                                         });
                                     }
                                     return {
+                                        id: t.id,
                                         name: t.name,
                                         description: t.description,
                                         priority: t.priority,
@@ -379,7 +497,6 @@ export default function DashboardPage() {
                                     };
                                 })}
                                 columnHeaders={["Name", "Description", "Priority", "Completed", "Created at", "Due Date", "Column", "Position"]}
-                                path="/tasks"
                                 onHeaderClick={(header) => {
                                     const columnMap: Record<string, string> = {
                                         'Name': 'name',
@@ -394,6 +511,7 @@ export default function DashboardPage() {
                                     const column = columnMap[header];
                                     if (column) handleSort(column);
                                 }}
+                                onRowClick={handleRowClick}
                                 sortColumn={sortColumn}
                                 sortDirection={sortDirection}
                             />
@@ -401,6 +519,34 @@ export default function DashboardPage() {
                     )}
                 </div>
             </div>
+
+            <TaskModal
+                task={viewingTask ? {
+                    id: Number(viewingTask.id),
+                    title: viewingTask.name,
+                    description: viewingTask.description,
+                    column_id: viewingTask.column,
+                    due_date: viewingTask.due_date === 'No set Due Date' ? null : viewingTask.due_date,
+                    priority: viewingTask.priority === 'N/A' ? null : viewingTask.priority,
+                    completed: viewingTask.completed
+                } : null}
+                isOpen={!!viewingTask}
+                isEditing={isEditingTask}
+                editTaskTitle={editTaskTitle}
+                editTaskDescription={editTaskDescription}
+                editTaskPriority={editTaskPriority}
+                editTaskCompleted={editTaskCompleted}
+                onClose={() => setViewingTask(null)}
+                onStartEdit={handleStartEditTask}
+                onCancelEdit={handleCancelEditTask}
+                onSave={handleSaveTask}
+                onDelete={handleDeleteTask}
+                onToggleComplete={handleToggleComplete}
+                onTitleChange={setEditTaskTitle}
+                onDescriptionChange={setEditTaskDescription}
+                onPriorityChange={setEditTaskPriority}
+                onCompletedChange={setEditTaskCompleted}
+            />
         </SharedLayout>
     );
 }
