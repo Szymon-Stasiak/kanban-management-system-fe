@@ -493,14 +493,13 @@ export default function DashboardPage() {
                                         description: t.description,
                                         priority: t.priority,
                                         completed: t.completed ? "Yes" : "No",
-                                        createdAt: formattedDate,
                                         due_date: formatDate(t.due_date),
                                         column: t.column,
                                         position: t.position,
                                         id: t.id
                                     };
                                 })}
-                                columnHeaders={["Name", "Description", "Priority", "Completed", "Created at", "Due Date", "Column", "Position"]}
+                                columnHeaders={["Name", "Description", "Priority", "Completed", "Due Date", "Column", "Position"]}
                                 onHeaderClick={(header) => {
                                     const columnMap: Record<string, string> = {
                                         'Name': 'name',
