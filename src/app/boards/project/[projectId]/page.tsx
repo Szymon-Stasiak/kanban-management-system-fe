@@ -29,7 +29,7 @@ type Task = {
   description?: string | null;
   column_id: number;
   due_date?: string | null;
-  priority?: string | null;
+  priority: "low" | "medium" | "high";
   completed?: boolean;
 };
 
@@ -198,6 +198,7 @@ export default function ProjectBoardsPage() {
   const [taskDescription, setTaskDescription] = useState("");
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
   const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
+  const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
   const [taskDueDate, setTaskDueDate] = useState(() =>
     new Date().toISOString().slice(0, 16)
   );
@@ -346,6 +347,7 @@ export default function ProjectBoardsPage() {
     setTaskDescription("");
     setTaskDueDate(new Date().toISOString().slice(0, 16));
     setIsTaskModalOpen(true);
+    setTaskPriority("");
   };
 
   const handleCreateTask = async () => {
@@ -367,6 +369,7 @@ export default function ProjectBoardsPage() {
           title: taskTitle,
           description: taskDescription,
           column_id: selectedColumnId,
+          priority: taskPriority,
           due_date: new Date(taskDueDate).toISOString(),
         },
       });
@@ -389,6 +392,7 @@ export default function ProjectBoardsPage() {
       setIsTaskModalOpen(false);
       setTaskTitle("");
       setTaskDescription("");
+      setTaskPriority("medium");
       setSelectedColumnId(null);
       setSelectedBoardId(null);
       setTaskDueDate(new Date().toISOString().slice(0, 16));
@@ -692,48 +696,62 @@ export default function ProjectBoardsPage() {
 
             <label className="block text-sm font-medium mb-1">Title *</label>
             <input
-              type="text"
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              className="w-full p-2 mb-3 border rounded"
-              placeholder="Enter task title"
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                className="w-full p-2 mb-3 border rounded"
+                placeholder="Enter task title"
             />
 
             <label className="block text-sm font-medium mb-1">Description</label>
             <textarea
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              className="w-full p-2 mb-4 border rounded"
-              rows={4}
-              placeholder="Enter task description (optional)"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                className="w-full p-2 mb-4 border rounded"
+                rows={4}
+                placeholder="Enter task description (optional)"
             />
+
+            <label className="block text-sm font-medium mb-1">Task priority</label>
+            <select
+                value={taskPriority}
+                onChange={(e) =>
+                    setTaskPriority(e.target.value as "low" | "medium" | "high")
+                }
+                className="w-full p-2 mb-4 border rounded"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
 
             <label className="block text-sm font-medium mb-1">Due date</label>
             <input
-              type="datetime-local"
-              value={taskDueDate}
-              onChange={(e) => setTaskDueDate(e.target.value)}
-              className="w-full p-2 mb-4 border rounded"
+                type="datetime-local"
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+                className="w-full p-2 mb-4 border rounded"
             />
 
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => {
-                  setIsTaskModalOpen(false);
-                  setTaskTitle("");
-                  setTaskDescription("");
-                  setSelectedColumnId(null);
-                  setSelectedBoardId(null);
-                  setTaskDueDate(new Date().toISOString().slice(0, 16));
-                }}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                  onClick={() => {
+                    setIsTaskModalOpen(false);
+                    setTaskTitle("");
+                    setTaskDescription("");
+                    setTaskPriority("medium");
+                    setSelectedColumnId(null);
+                    setSelectedBoardId(null);
+                    setTaskDueDate(new Date().toISOString().slice(0, 16));
+                  }}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
                 Cancel
               </button>
 
               <button
-                onClick={handleCreateTask}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={handleCreateTask}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Create
               </button>
@@ -744,17 +762,17 @@ export default function ProjectBoardsPage() {
 
       {/* VIEW TASK MODAL */}
       <TaskModal
-        task={viewingTask}
-        isOpen={!!viewingTask}
-        isEditing={isEditingTask}
-        editTaskTitle={editTaskTitle}
-        editTaskDescription={editTaskDescription}
-        editTaskPriority={editTaskPriority}
-        editTaskCompleted={editTaskCompleted}
-        onClose={() => setViewingTask(null)}
-        onStartEdit={handleStartEditTask}
-        onCancelEdit={handleCancelEditTask}
-        onSave={handleSaveTask}
+          task={viewingTask}
+          isOpen={!!viewingTask}
+          isEditing={isEditingTask}
+          editTaskTitle={editTaskTitle}
+          editTaskDescription={editTaskDescription}
+          editTaskPriority={editTaskPriority}
+          editTaskCompleted={editTaskCompleted}
+          onClose={() => setViewingTask(null)}
+          onStartEdit={handleStartEditTask}
+          onCancelEdit={handleCancelEditTask}
+          onSave={handleSaveTask}
         onDelete={handleDeleteTask}
         onToggleComplete={handleToggleComplete}
         onTitleChange={setEditTaskTitle}
