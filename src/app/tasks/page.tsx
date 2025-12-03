@@ -8,6 +8,7 @@ import { Description } from '@radix-ui/react-dialog';
 
 interface Task {
     id: string;
+    internal_id: number;
     name: string;
     description: string;
     priority: string;
@@ -83,6 +84,7 @@ export default function DashboardPage() {
                 const data = await authRequest<any[]>({ method: 'get', url: '/tasks/getall' });
                 const items = Array.isArray(data) ? data.map((t: any) => ({
                     id: t.public_task_id || t.id,
+                    internal_id: t.id,
                     name: t.name || t.title,
                     description: t.description,
                     priority: t.priority || 'N/A',
@@ -250,7 +252,7 @@ export default function DashboardPage() {
         try {
             const updated = await authRequest<any>({
                 method: "put",
-                url: `/tasks/${viewingTask.id}`,
+                url: `/tasks/update/${viewingTask.internal_id}`,
                 data: {
                     title: editTaskTitle,
                     description: editTaskDescription,
@@ -261,6 +263,7 @@ export default function DashboardPage() {
 
             const updatedTask: Task = {
                 id: updated.public_task_id || updated.id,
+                internal_id: updated.id,
                 name: updated.name || updated.title,
                 description: updated.description,
                 priority: updated.priority || 'N/A',
@@ -286,7 +289,7 @@ export default function DashboardPage() {
         try {
             const updated = await authRequest<any>({
                 method: "put",
-                url: `/tasks/${viewingTask.id}`,
+                url: `/tasks/update/${viewingTask.internal_id}`,
                 data: {
                     completed: !viewingTask.completed,
                 },
@@ -294,6 +297,7 @@ export default function DashboardPage() {
 
             const updatedTask: Task = {
                 id: updated.public_task_id || updated.id,
+                internal_id: updated.id,
                 name: updated.name || updated.title,
                 description: updated.description,
                 priority: updated.priority || 'N/A',
@@ -317,7 +321,7 @@ export default function DashboardPage() {
         if (!confirm("Are you sure you want to delete this task?")) return;
 
         try {
-            await authRequest({ method: "delete", url: `/tasks/${viewingTask.id}` });
+            await authRequest({ method: "delete", url: `/tasks/${viewingTask.internal_id}` });
             setTasks(prevTasks => prevTasks.filter(t => t.id !== viewingTask.id));
             setViewingTask(null);
             setIsEditingTask(false);
@@ -485,7 +489,6 @@ export default function DashboardPage() {
                                         });
                                     }
                                     return {
-                                        id: t.id,
                                         name: t.name,
                                         description: t.description,
                                         priority: t.priority,
@@ -493,7 +496,8 @@ export default function DashboardPage() {
                                         createdAt: formattedDate,
                                         due_date: formatDate(t.due_date),
                                         column: t.column,
-                                        position: t.position
+                                        position: t.position,
+                                        id: t.id
                                     };
                                 })}
                                 columnHeaders={["Name", "Description", "Priority", "Completed", "Created at", "Due Date", "Column", "Position"]}
