@@ -19,6 +19,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   horizontalListSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -64,17 +65,21 @@ const renderPriorityBadge = (p?: string | null) => {
 function SortableColumn({
   column,
   boardId,
+  sensors,
   onRename,
   onDelete,
   onAddTask,
   onViewTask,
+  onTaskDragEnd,
 }: {
   column: Column;
   boardId: number;
+  sensors: any;
   onRename: (boardId: number, columnId: number, currentName: string) => void;
   onDelete: (boardId: number, columnId: number) => void;
   onAddTask: (boardId: number, columnId: number) => void;
   onViewTask: (task: Task) => void;
+  onTaskDragEnd: (event: DragEndEvent, boardId: number, columnId: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: column.id });
@@ -140,27 +145,23 @@ function SortableColumn({
       </div>
 
       {/* Tasks List */}
-      <div className="space-y-3 mb-4">
+                      <div className="space-y-3 mb-4">
         {column.tasks && column.tasks.length > 0 ? (
-          column.tasks.map((task) => (
-            <div
-              key={task.id}
-              onClick={() => onViewTask(task)}
-              className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors"
-            >
-              <h4 className={`${task.completed ? 'font-medium line-through text-gray-400' : 'font-medium'}`}>{task.title}</h4>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  {task.due_date ? (
-                    <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleString()}</p>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic">No due date</p>
-                  )}
-                </div>
-                <div>{renderPriorityBadge(task.priority)}</div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(event) => onTaskDragEnd(event, boardId, column.id)}
+          >
+            <SortableContext items={[...column.tasks].sort((a,b)=> (a.position??0)-(b.position??0)).map(t=>t.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {column.tasks
+                  .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                  .map((task) => (
+                    <SortableTask key={task.id} task={task} onViewTask={onViewTask} />
+                  ))}
               </div>
-            </div>
-          ))
+            </SortableContext>
+          </DndContext>
         ) : (
           <p className="text-gray-400 text-sm">No tasks.</p>
         )}
@@ -173,6 +174,67 @@ function SortableColumn({
       >
         + Add Task
       </button>
+    </div>
+  );
+}
+
+// Sortable Task Component
+function SortableTask({ task, onViewTask }: { task: Task; onViewTask: (task: Task) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="bg-white p-3 rounded shadow-sm border cursor-pointer hover:bg-gray-50 transition-colors flex items-start gap-3"
+      onClick={() => onViewTask(task)}
+    >
+      {/* Drag handle only - attach listeners/attributes here so clicking the card doesn't start drag */}
+      <button
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+        title="Drag task"
+        aria-label="Drag task"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="5" r="1"></circle>
+          <circle cx="12" cy="12" r="1"></circle>
+          <circle cx="12" cy="19" r="1"></circle>
+        </svg>
+      </button>
+
+      <div className="flex-1">
+        <h4 className={`${task.completed ? 'font-medium line-through text-gray-400' : 'font-medium'}`}>{task.title}</h4>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            {task.due_date ? (
+              <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleString()}</p>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No due date</p>
+            )}
+          </div>
+          <div>{renderPriorityBadge(task.priority)}</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -331,6 +393,78 @@ export default function ProjectBoardsPage() {
 
       setBoards((prev) =>
         prev.map((b) => (b.id === boardId ? { ...b, columns: columnsWithTasks } : b))
+      );
+    }
+  };
+
+  // Task drag end handler (within a column)
+  const handleTaskDragEnd = async (event: DragEndEvent, boardId: number, columnId: number) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const board = boards.find((b) => b.id === boardId);
+    if (!board || !board.columns) return;
+
+    const column = board.columns.find((c) => c.id === columnId);
+    if (!column || !column.tasks) return;
+
+    const sortedTasks = [...column.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const oldIndex = sortedTasks.findIndex((t) => t.id === active.id);
+    const newIndex = sortedTasks.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sortedTasks, oldIndex, newIndex);
+    const updatedWithPositions = reordered.map((t, idx) => ({ ...t, position: idx + 1 }));
+
+    // Merge updated tasks into board state
+    setBoards((prev) =>
+      prev.map((b) =>
+        b.id === boardId
+          ? {
+              ...b,
+              columns: b.columns?.map((col) =>
+                col.id === columnId ? { ...col, tasks: updatedWithPositions } : col
+              ),
+            }
+          : b
+      )
+    );
+
+    try {
+      // Persist moved task position for the active item
+      await authRequest({
+        method: "put",
+        url: `/tasks/update/${active.id}`,
+        data: { position: newIndex + 1, column_id: columnId },
+      });
+
+      // Refresh tasks for the column to ensure consistency
+      const refreshed = await authRequest<Task[]>({ method: "get", url: `/tasks/${columnId}` });
+      const colsWithTasks = await Promise.all(
+        refreshed.map(async (colTask) => {
+          // This map is only per-task: convert to expected shape (no extra fetch)
+          return colTask;
+        })
+      );
+
+      setBoards((prev) =>
+        prev.map((b) =>
+          b.id === boardId
+            ? {
+                ...b,
+                columns: b.columns?.map((col) =>
+                  col.id === columnId ? { ...col, tasks: refreshed } : col
+                ),
+              }
+            : b
+        )
+      );
+    } catch (err) {
+      console.error("Failed to persist task reorder", err);
+      // Revert by refetching column tasks
+      const original = await authRequest<Task[]>({ method: "get", url: `/tasks/${columnId}` });
+      setBoards((prev) =>
+        prev.map((b) => (b.id === boardId ? { ...b, columns: b.columns?.map((col) => (col.id === columnId ? { ...col, tasks: original } : col)) } : b))
       );
     }
   };
@@ -836,6 +970,8 @@ export default function ProjectBoardsPage() {
                                 key={col.id}
                                 column={col}
                                 boardId={board.id}
+                                sensors={sensors}
+                                onTaskDragEnd={handleTaskDragEnd}
                                 onRename={handleRenameColumn}
                                 onDelete={handleDeleteColumn}
                                 onAddTask={handleOpenTaskModal}
