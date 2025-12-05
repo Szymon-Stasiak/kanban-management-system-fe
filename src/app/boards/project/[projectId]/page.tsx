@@ -459,7 +459,7 @@ export default function ProjectBoardsPage() {
     try {
       const updated = await authRequest<Task>({
         method: "put",
-        url: `/tasks/${viewingTask.id}`,
+        url: `/tasks/update/${viewingTask.id}`,
         data: {
           completed: !viewingTask.completed,
         },
