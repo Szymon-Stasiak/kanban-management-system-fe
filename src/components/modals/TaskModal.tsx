@@ -5,6 +5,7 @@ type Task = {
   title: string;
   description?: string | null;
   column_id: number;
+  position?: number;
   due_date?: string | null;
   priority?: string | null;
   completed?: boolean;

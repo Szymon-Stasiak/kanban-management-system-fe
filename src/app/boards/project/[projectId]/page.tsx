@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authRequest } from "@/lib/auth";
 import SharedLayout from "@/components/layouts/SharedLayout";
 import { TaskModal } from "@/components/modals/TaskModal";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
@@ -29,6 +30,7 @@ type Task = {
   title: string;
   description?: string | null;
   column_id: number;
+  position?: number;
   due_date?: string | null;
   priority?: string | null;
   completed?: boolean;
@@ -70,7 +72,6 @@ function SortableColumn({
   onDelete,
   onAddTask,
   onViewTask,
-  onTaskDragEnd,
 }: {
   column: Column;
   boardId: number;
@@ -79,7 +80,6 @@ function SortableColumn({
   onDelete: (boardId: number, columnId: number) => void;
   onAddTask: (boardId: number, columnId: number) => void;
   onViewTask: (task: Task) => void;
-  onTaskDragEnd: (event: DragEndEvent, boardId: number, columnId: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: column.id });
@@ -145,23 +145,17 @@ function SortableColumn({
       </div>
 
       {/* Tasks List */}
-                      <div className="space-y-3 mb-4">
+      <div className="space-y-3 mb-4">
         {column.tasks && column.tasks.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={(event) => onTaskDragEnd(event, boardId, column.id)}
-          >
-            <SortableContext items={[...column.tasks].sort((a,b)=> (a.position??0)-(b.position??0)).map(t=>t.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-3">
-                {column.tasks
-                  .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-                  .map((task) => (
-                    <SortableTask key={task.id} task={task} onViewTask={onViewTask} />
-                  ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <SortableContext items={[...column.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {column.tasks
+                .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                .map((task) => (
+                  <SortableTask key={task.id} task={task} onViewTask={onViewTask} />
+                ))}
+            </div>
+          </SortableContext>
         ) : (
           <p className="text-gray-400 text-sm">No tasks.</p>
         )}
@@ -181,7 +175,7 @@ function SortableColumn({
 // Sortable Task Component
 function SortableTask({ task, onViewTask }: { task: Task; onViewTask: (task: Task) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task.id });
+    useSortable({ id: `task-${task.id}` });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -271,6 +265,7 @@ export default function ProjectBoardsPage() {
   const [editTaskDescription, setEditTaskDescription] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
   const [editTaskCompleted, setEditTaskCompleted] = useState(false);
+  const [activeDragTask, setActiveDragTask] = useState<Task | null>(null);
 
   
 
@@ -328,6 +323,26 @@ export default function ProjectBoardsPage() {
 
     fetchBoards();
   }, [projectId]);
+
+  const handleDragStart = useCallback((event: any) => {
+    const activeId = String(event.active.id);
+    if (!activeId.startsWith("task-")) {
+      setActiveDragTask(null);
+      return;
+    }
+    const taskId = Number(activeId.replace("task-", ""));
+    // find the task in boards
+    for (const b of boards) {
+      for (const c of b.columns ?? []) {
+        const t = c.tasks?.find((x) => x.id === taskId);
+        if (t) {
+          setActiveDragTask(t);
+          return;
+        }
+      }
+    }
+    setActiveDragTask(null);
+  }, [boards]);
 
   const handleDragEnd = async (event: DragEndEvent, boardId: number) => {
     const { active, over } = event;
@@ -397,74 +412,198 @@ export default function ProjectBoardsPage() {
     }
   };
 
-  // Task drag end handler (within a column)
-  const handleTaskDragEnd = async (event: DragEndEvent, boardId: number, columnId: number) => {
+  // Unified handler: deduce board from active item and delegate
+  const handleUnifiedDragEnd = async (event: DragEndEvent) => {
+    const { active } = event;
+    const activeId = String(active.id);
+    let board: Board | undefined;
+
+    if (activeId.startsWith("task-")) {
+      const taskId = Number(activeId.replace("task-", ""));
+      board = boards.find((b) => b.columns?.some((c) => c.tasks?.some((t) => t.id === taskId)));
+    } else {
+      const maybeColId = Number(active.id as any);
+      if (!isNaN(maybeColId)) {
+        board = boards.find((b) => b.columns?.some((c) => c.id === maybeColId));
+      }
+    }
+
+    if (!board) {
+      setActiveDragTask(null);
+      return;
+    }
+
+    if (activeId.startsWith("task-")) {
+      await handleTaskDragEnd(event, board.id);
+    } else {
+      await handleDragEnd(event, board.id);
+    }
+
+    setActiveDragTask(null);
+  };
+
+  // Task drag end handler (supports moving between columns)
+  const handleTaskDragEnd = async (event: DragEndEvent, boardId: number) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+    if (!activeId.startsWith("task-")) return; // only handle tasks here
+    const taskId = Number(activeId.replace("task-", ""));
 
     const board = boards.find((b) => b.id === boardId);
     if (!board || !board.columns) return;
 
-    const column = board.columns.find((c) => c.id === columnId);
-    if (!column || !column.tasks) return;
+    // Find source column and indexes
+    const sourceColumn = board.columns.find((c) => c.tasks?.some((t) => t.id === taskId));
+    if (!sourceColumn) return;
+    const sourceTasks = [...(sourceColumn.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const oldIndex = sourceTasks.findIndex((t) => t.id === taskId);
+    if (oldIndex === -1) return;
 
-    const sortedTasks = [...column.tasks].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    const oldIndex = sortedTasks.findIndex((t) => t.id === active.id);
-    const newIndex = sortedTasks.findIndex((t) => t.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+    // Determine destination column and index
+    const overId = String(over.id);
+    let destColumnId: number | null = null;
+    let destIndex = 0;
 
-    const reordered = arrayMove(sortedTasks, oldIndex, newIndex);
-    const updatedWithPositions = reordered.map((t, idx) => ({ ...t, position: idx + 1 }));
+    if (overId.startsWith("task-")) {
+      const overTaskId = Number(overId.replace("task-", ""));
+      const destColumn = board.columns.find((c) => c.tasks?.some((t) => t.id === overTaskId));
+      if (!destColumn) return;
+      destColumnId = destColumn.id;
+      const destTasks = [...(destColumn.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      destIndex = destTasks.findIndex((t) => t.id === overTaskId);
+      if (destIndex === -1) destIndex = destTasks.length;
+    } else {
+      // dropped on a column area - try to parse numeric id
+      const parsed = Number(overId.replace("column-", ""));
+      if (!isNaN(parsed) && parsed > 0 && board.columns.some((c) => c.id === parsed)) {
+        destColumnId = parsed;
+        const destCol = board.columns.find((c) => c.id === destColumnId)!;
+        const destTasks = [...(destCol.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        destIndex = destTasks.length; // append
+      } else {
+        const num = Number(overId);
+        if (!isNaN(num) && board.columns.some((c) => c.id === num)) {
+          destColumnId = num;
+          const destCol = board.columns.find((c) => c.id === destColumnId)!;
+          const destTasks = [...(destCol.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+          destIndex = destTasks.length;
+        } else {
+          return;
+        }
+      }
+    }
 
-    // Merge updated tasks into board state
-    setBoards((prev) =>
-      prev.map((b) =>
-        b.id === boardId
-          ? {
-              ...b,
-              columns: b.columns?.map((col) =>
-                col.id === columnId ? { ...col, tasks: updatedWithPositions } : col
-              ),
-            }
-          : b
-      )
-    );
+    if (destColumnId === null) return;
 
-    try {
-      // Persist moved task position for the active item
-      await authRequest({
-        method: "put",
-        url: `/tasks/update/${active.id}`,
-        data: { position: newIndex + 1, column_id: columnId },
-      });
+    // Moving within same column
+    if (sourceColumn.id === destColumnId) {
+      const col = sourceColumn;
+      const sorted = [...(col.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      const newIndex = destIndex;
+      if (oldIndex === -1 || newIndex === -1) return;
 
-      // Refresh tasks for the column to ensure consistency
-      const refreshed = await authRequest<Task[]>({ method: "get", url: `/tasks/${columnId}` });
-      const colsWithTasks = await Promise.all(
-        refreshed.map(async (colTask) => {
-          // This map is only per-task: convert to expected shape (no extra fetch)
-          return colTask;
-        })
-      );
+      const reordered = arrayMove(sorted, oldIndex, newIndex);
+      const updatedWithPositions = reordered.map((t, idx) => ({ ...t, position: idx + 1 }));
 
       setBoards((prev) =>
         prev.map((b) =>
           b.id === boardId
             ? {
                 ...b,
-                columns: b.columns?.map((col) =>
-                  col.id === columnId ? { ...col, tasks: refreshed } : col
-                ),
+                columns: b.columns?.map((c) => (c.id === col.id ? { ...c, tasks: updatedWithPositions } : c)),
+              }
+            : b
+        )
+      );
+
+      try {
+        await authRequest({ method: "put", url: `/tasks/update/${taskId}`, data: { position: newIndex + 1, column_id: col.id } });
+        const refreshed = await authRequest<Task[]>({ method: "get", url: `/tasks/${col.id}` });
+        setBoards((prev) => prev.map((b) => (b.id === boardId ? { ...b, columns: b.columns?.map((c) => (c.id === col.id ? { ...c, tasks: refreshed } : c)) } : b)));
+      } catch (err) {
+        console.error("Failed to persist task reorder", err);
+        const original = await authRequest<Task[]>({ method: "get", url: `/tasks/${col.id}` });
+        setBoards((prev) => prev.map((b) => (b.id === boardId ? { ...b, columns: b.columns?.map((c) => (c.id === col.id ? { ...c, tasks: original } : c)) } : b)));
+      }
+
+      return;
+    }
+
+    // Moving across columns
+    const destCol = board.columns.find((c) => c.id === destColumnId)!;
+
+    const sourceTasksCopy = [...(sourceColumn.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const destTasksCopy = [...(destCol.tasks ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+    // Remove from source
+    const [moved] = sourceTasksCopy.splice(oldIndex, 1);
+    // Insert into dest at destIndex
+    const insertIndex = destIndex >= 0 ? destIndex : destTasksCopy.length;
+    destTasksCopy.splice(insertIndex, 0, moved);
+
+    const updatedSource = sourceTasksCopy.map((t, idx) => ({ ...t, position: idx + 1 }));
+    const updatedDest = destTasksCopy.map((t, idx) => ({ ...t, position: idx + 1 }));
+
+    setBoards((prev) =>
+      prev.map((b) =>
+        b.id === boardId
+          ? {
+              ...b,
+              columns: b.columns?.map((c) => {
+                if (c.id === sourceColumn.id) return { ...c, tasks: updatedSource };
+                if (c.id === destCol.id) return { ...c, tasks: updatedDest };
+                return c;
+              }),
+            }
+          : b
+      )
+    );
+
+    try {
+      await authRequest({ method: "put", url: `/tasks/update/${taskId}`, data: { column_id: destCol.id, position: insertIndex + 1 } });
+
+      // Refresh both columns to ensure consistency
+      const [refSource, refDest] = await Promise.all([
+        authRequest<Task[]>({ method: "get", url: `/tasks/${sourceColumn.id}` }),
+        authRequest<Task[]>({ method: "get", url: `/tasks/${destCol.id}` }),
+      ]);
+
+      setBoards((prev) =>
+        prev.map((b) =>
+          b.id === boardId
+            ? {
+                ...b,
+                columns: b.columns?.map((c) => {
+                  if (c.id === sourceColumn.id) return { ...c, tasks: refSource };
+                  if (c.id === destCol.id) return { ...c, tasks: refDest };
+                  return c;
+                }),
               }
             : b
         )
       );
     } catch (err) {
-      console.error("Failed to persist task reorder", err);
-      // Revert by refetching column tasks
-      const original = await authRequest<Task[]>({ method: "get", url: `/tasks/${columnId}` });
+      console.error("Failed to move task", err);
+      // Re-fetch affected columns to revert
+      const [origSource, origDest] = await Promise.all([
+        authRequest<Task[]>({ method: "get", url: `/tasks/${sourceColumn.id}` }),
+        authRequest<Task[]>({ method: "get", url: `/tasks/${destCol.id}` }),
+      ]);
       setBoards((prev) =>
-        prev.map((b) => (b.id === boardId ? { ...b, columns: b.columns?.map((col) => (col.id === columnId ? { ...col, tasks: original } : col)) } : b))
+        prev.map((b) =>
+          b.id === boardId
+            ? {
+                ...b,
+                columns: b.columns?.map((c) => {
+                  if (c.id === sourceColumn.id) return { ...c, tasks: origSource };
+                  if (c.id === destCol.id) return { ...c, tasks: origDest };
+                  return c;
+                }),
+              }
+            : b
+        )
       );
     }
   };
@@ -955,7 +1094,8 @@ export default function ProjectBoardsPage() {
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
-                      onDragEnd={(event) => handleDragEnd(event, board.id)}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleUnifiedDragEnd}
                     >
                       <SortableContext
                         // Ensure items reflect the same order used for rendering
@@ -971,7 +1111,6 @@ export default function ProjectBoardsPage() {
                                 column={col}
                                 boardId={board.id}
                                 sensors={sensors}
-                                onTaskDragEnd={handleTaskDragEnd}
                                 onRename={handleRenameColumn}
                                 onDelete={handleDeleteColumn}
                                 onAddTask={handleOpenTaskModal}
@@ -980,6 +1119,25 @@ export default function ProjectBoardsPage() {
                             ))}
                         </div>
                       </SortableContext>
+
+                      <DragOverlay>
+                        {activeDragTask ? (
+                          <div className="bg-white p-3 rounded shadow-md border w-80">
+                            <h4 className={`${activeDragTask.completed ? 'font-medium line-through text-gray-400' : 'font-medium'}`}>{activeDragTask.title}</h4>
+                            <div className="flex items-center justify-between gap-2 mt-2">
+                              <div>
+                                {activeDragTask.due_date ? (
+                                  <p className="text-sm text-gray-500">Due: {new Date(activeDragTask.due_date).toLocaleString()}</p>
+                                ) : (
+                                  <p className="text-sm text-gray-400 italic">No due date</p>
+                                )}
+                              </div>
+                              <div>{renderPriorityBadge(activeDragTask.priority)}</div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </DragOverlay>
+
                     </DndContext>
                   ) : (
                     <p className="mb-6">No columns found.</p>
