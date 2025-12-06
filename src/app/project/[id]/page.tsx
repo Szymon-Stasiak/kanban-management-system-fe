@@ -27,7 +27,6 @@ export default function ProjectPage() {
     const [saving, setSaving] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [downloadingPdf, setDownloadingPdf] = useState(false);
 
     const params = useParams();
     const projectId = params.id;
@@ -94,35 +93,6 @@ export default function ProjectPage() {
         } finally {
             setDeleting(false);
             setShowDeleteModal(false);
-        }
-    };
-
-    const handleDownloadPdf = async () => {
-        if (!project) return;
-        setDownloadingPdf(true);
-        try {
-            // Response type 'blob' to receive binary PDF
-            const data = await authRequest<Blob>({
-                method: 'get',
-                url: `projects/pdf/${project.public_project_id}`,
-                responseType: 'blob',
-            });
-
-            const blob = new Blob([data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const safeName = project.name ? project.name.replace(/\s+/g, '_') : 'project';
-            a.download = `projekt_${safeName}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (err: any) {
-            console.error('Failed to download PDF', err);
-            alert(err?.message || 'Failed to download PDF');
-        } finally {
-            setDownloadingPdf(false);
         }
     };
 
@@ -205,14 +175,6 @@ export default function ProjectPage() {
                         </div>
 
                         <div className="col-span-2 flex justify-end items-end w-full h-full gap-3">
-                            <button
-                                onClick={handleDownloadPdf}
-                                disabled={downloadingPdf}
-                                className="px-6 py-3 rounded-lg bg-indigo-600 text-white text-lg font-semibold hover:bg-indigo-700 transition shadow-md"
-                            >
-                                {downloadingPdf ? 'Downloading...' : 'Export PDF'}
-                            </button>
-
                             <button
                                 onClick={() => router.push(`/boards/project/${project.public_project_id}`)}
                                 className="px-6 py-3 rounded-lg bg-green-600 text-white text-lg font-semibold hover:bg-green-700 transition shadow-md"

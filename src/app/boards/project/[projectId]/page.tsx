@@ -242,6 +242,7 @@ export default function ProjectBoardsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
 
   // Edit board modal
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
@@ -866,6 +867,64 @@ export default function ProjectBoardsPage() {
       alert("Failed to delete board");
     }
   };
+  
+  const handleDownloadPdfForBoard = async (boardId: number) => {
+    const pid = Array.isArray(projectId) ? projectId[0] : projectId;
+    if (!pid) return;
+    setDownloadingPdf(true);
+    try {
+      const data = await authRequest<Blob>({
+        method: "get",
+        url: `/projects/pdf/${pid}?board_id=${boardId}`,
+        responseType: "blob",
+      });
+
+      const blob = new Blob([data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      let projectTitle = await getProjectTitle(pid.toString());
+      a.download = `project_${projectTitle.toString().replace(/\s+/g, "_")}_board_${boardId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download PDF for board", err);
+      alert("Failed to download PDF for board");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadCsvForBoard = async (boardId: number) => {
+    const pid = Array.isArray(projectId) ? projectId[0] : projectId;
+    if (!pid) return;
+    setDownloadingCsv(true);
+    try {
+      const data = await authRequest<Blob>({
+        method: "get",
+        url: `/projects/csv/${pid}?board_id=${boardId}`,
+        responseType: "blob",
+      });
+
+      const blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const projectTitle = await getProjectTitle(pid.toString());
+      a.download = `${projectTitle.toString().replace(/\s+/g, "_")}_board_${boardId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download CSV for board", err);
+      alert("Failed to export CSV for board");
+    } finally {
+      setDownloadingCsv(false);
+    }
+  };
   const getProjectTitle = async (id: string): Promise<string> => {
     // Fetch project info from backend and return its name for filename.
     try {
@@ -880,12 +939,13 @@ export default function ProjectBoardsPage() {
   };
 
   const handleDownloadPdf = async () => {
-    if (!projectId) return;
+    const pid = Array.isArray(projectId) ? projectId[0] : projectId;
+    if (!pid) return;
     setDownloadingPdf(true);
     try {
       const data = await authRequest<Blob>({
         method: "get",
-        url: `/projects/pdf/${projectId}`,
+        url: `/projects/pdf/${pid}`,
         responseType: "blob",
       });
 
@@ -893,8 +953,8 @@ export default function ProjectBoardsPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      let projectTitle = await getProjectTitle(projectId.toString());
-      a.download = `project_${projectTitle.toString().replace(/\s+/g, "_")}.pdf`;
+      let projectTitle = await getProjectTitle(pid.toString());
+      a.download = `Project_${projectTitle.toString().replace(/\s+/g, "_")}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -904,6 +964,35 @@ export default function ProjectBoardsPage() {
       alert("Failed to download PDF");
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadCsv = async () => {
+    const pid = Array.isArray(projectId) ? projectId[0] : projectId;
+    if (!pid) return;
+    setDownloadingCsv(true);
+    try {
+      const data = await authRequest<Blob>({
+        method: "get",
+        url: `/projects/csv/${pid}`,
+        responseType: "blob",
+      });
+
+      const blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const projectTitle = await getProjectTitle(pid.toString());
+      a.download = `${projectTitle.toString().replace(/\s+/g, "_")}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download CSV", err);
+      alert("Failed to export CSV");
+    } finally {
+      setDownloadingCsv(false);
     }
   };
 
@@ -1092,6 +1181,14 @@ export default function ProjectBoardsPage() {
             </button>
 
             <button
+              onClick={handleDownloadCsv}
+              disabled={downloadingCsv}
+              className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:opacity-50"
+            >
+              {downloadingCsv ? "Exporting..." : "Export CSV"}
+            </button>
+
+            <button
               onClick={() => router.push(`/boards/create/project/${projectId}`)}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
@@ -1124,6 +1221,20 @@ export default function ProjectBoardsPage() {
                     </div>
 
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDownloadPdfForBoard(board.id)}
+                        className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
+                      >
+                        PDF
+                      </button>
+
+                      <button
+                        onClick={() => handleDownloadCsvForBoard(board.id)}
+                        className="px-2 py-1 bg-gray-700 text-white rounded hover:bg-gray-800 text-sm"
+                      >
+                        CSV
+                      </button>
+
                       <button
                         onClick={() => openEditModal(board)}
                         className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
