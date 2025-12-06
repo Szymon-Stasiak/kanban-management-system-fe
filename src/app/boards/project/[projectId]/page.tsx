@@ -241,6 +241,7 @@ export default function ProjectBoardsPage() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Edit board modal
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
@@ -865,6 +866,46 @@ export default function ProjectBoardsPage() {
       alert("Failed to delete board");
     }
   };
+  const getProjectTitle = async (id: string): Promise<string> => {
+    // Fetch project info from backend and return its name for filename.
+    try {
+      const project = await authRequest<any>({ method: "get", url: `/projects/${id}` });
+      if (project && project.name) return project.name;
+      console.warn("Project fetched but name missing, falling back to id", id);
+      return `project_${id}`;
+    } catch (err) {
+      console.error("Failed to fetch project title", err);
+      return `project_${id}`;
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!projectId) return;
+    setDownloadingPdf(true);
+    try {
+      const data = await authRequest<Blob>({
+        method: "get",
+        url: `/projects/pdf/${projectId}`,
+        responseType: "blob",
+      });
+
+      const blob = new Blob([data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      let projectTitle = await getProjectTitle(projectId.toString());
+      a.download = `project_${projectTitle.toString().replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download PDF", err);
+      alert("Failed to download PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const openEditModal = (board: Board) => {
     setEditingBoard(board);
@@ -1041,12 +1082,22 @@ export default function ProjectBoardsPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">All Boards</h1>
 
-          <button
-            onClick={() => router.push(`/boards/create/project/${projectId}`)}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            + Create Board
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+            >
+              {downloadingPdf ? "Downloading..." : "Export as PDF"}
+            </button>
+
+            <button
+              onClick={() => router.push(`/boards/create/project/${projectId}`)}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              + Create Board
+            </button>
+          </div>
         </div>
 
         {loading && <p>Loading...</p>}
